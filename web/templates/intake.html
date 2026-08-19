@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}קליטת תרומות דם{% endblock %}
+{% block body_class %}page-intake{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>קליטת מנות דם מתורמים</h1>
+  <p class="page-subtitle">
+    כל מנה נשמרת עם פרטי התורם שלה, כדי שניתן יהיה לעקוב אחריה מהתרומה ועד הניפוק.
+  </p>
+</section>
+
+<div class="card card--form">
+  <form method="post" action="{{ url_for('becs.submit_donation') }}" autocomplete="off" novalidate>
+    <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+
+    <div class="form-grid">
+      <div class="field {% if invalid_field == 'blood_type' %}field--invalid{% endif %}">
+        <label for="blood_type">סוג הדם הנתרם</label>
+        <select id="blood_type" name="blood_type" required>
+          <option value="" disabled {% if not form.blood_type %}selected{% endif %}>נא לבחור סוג דם</option>
+          {% for blood_type in blood_types %}
+            <option value="{{ blood_type.value }}" {% if form.blood_type == blood_type.value %}selected{% endif %}>
+              {{ blood_type.value }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field {% if invalid_field == 'donation_date' %}field--invalid{% endif %}">
+        <label for="donation_date">תאריך התרומה</label>
+        <input type="date" id="donation_date" name="donation_date"
+               value="{{ form.donation_date }}" max="{{ today }}" required>
+      </div>
+
+      <div class="field {% if invalid_field == 'donor_id' %}field--invalid{% endif %}">
+        <label for="donor_id">מספר תעודת זהות של התורם</label>
+        <input type="text" id="donor_id" name="donor_id" value="{{ form.donor_id }}"
+               inputmode="numeric" maxlength="9" placeholder="9 ספרות" required>
+        <small class="field-hint">המערכת בודקת את ספרת הביקורת של תעודת הזהות.</small>
+      </div>
+
+      <div class="field {% if invalid_field == 'full_name' %}field--invalid{% endif %}">
+        <label for="full_name">שם מלא של התורם</label>
+        <input type="text" id="full_name" name="full_name" value="{{ form.full_name }}"
+               maxlength="120" placeholder="שם פרטי ושם משפחה" required>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="button button--intake">קליטת המנה למלאי</button>
+    </div>
+  </form>
+</div>
+
+<div class="card card--note">
+  <h2>שימו לב</h2>
+  <ul class="note-list">
+    <li>אם התורם כבר רשום במערכת עם סוג דם אחר, הקליטה תיחסם עד לבירור הנתונים.</li>
+    <li>לא ניתן להזין תאריך תרומה עתידי.</li>
+    <li>כל קליטה נרשמת בלוג הפעולות עם זמן, מבצע הפעולה ומספר המנה.</li>
+  </ul>
+</div>
+{% endblock %}

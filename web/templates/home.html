@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}מסך הבית{% endblock %}
+{% block body_class %}page-home{% endblock %}
+
+{% block topbar %}
+  <a href="{{ url_for('becs.inventory') }}" class="topbar-button">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" />
+    </svg>
+    מלאי ולוג פעולות
+  </a>
+
+  {# The authentication feature has not been developed yet, so the control is
+     visible but explicitly inert rather than silently missing. #}
+  <button type="button" class="topbar-button topbar-button--disabled" disabled
+          title="הפיצ׳ר טרם פותח">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+    התחברות למערכת
+    <span class="topbar-tag">בקרוב</span>
+  </button>
+{% endblock %}
+
+{% block content %}
+<section class="home">
+  <div class="home-head">
+    <span class="home-eyebrow">בנק הדם הלאומי</span>
+    <h1>איזו פעולה לבצע?</h1>
+    <p class="home-subtitle">
+      בחר פעולה כדי להתחיל. לחזרה לתפריט זה יש להשתמש בכפתור החזרה שבראש המסך.
+    </p>
+  </div>
+
+  <nav class="home-actions" aria-label="פעולות ראשיות">
+    <a href="{{ url_for('becs.donation_intake') }}" class="tile tile--intake">
+      <span class="tile-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3s6 6.4 6 10.2A6 6 0 0 1 6 13.2C6 9.4 12 3 12 3z" />
+          <path d="M12 9v6" /><path d="M9 12h6" />
+        </svg>
+      </span>
+      <span class="tile-body">
+        <span class="tile-title">קליטת תרומה</span>
+        <span class="tile-meta">נדרש: סוג דם, ת״ז ושם</span>
+      </span>
+      <span class="tile-arrow" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+      </span>
+    </a>
+
+    <a href="{{ url_for('becs.routine_dispense_form') }}" class="tile tile--dispense">
+      <span class="tile-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3s6 6.4 6 10.2A6 6 0 0 1 6 13.2C6 9.4 12 3 12 3z" />
+          <path d="M9 13h6" />
+        </svg>
+      </span>
+      <span class="tile-body">
+        <span class="tile-title">ניפוק בשגרה</span>
+        <span class="tile-meta">נדרש: סוג דם ומנות</span>
+      </span>
+      <span class="tile-arrow" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+      </span>
+    </a>
+
+    <a href="{{ url_for('becs.emergency_dispense_form') }}" class="tile tile--emergency">
+      <span class="tile-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 4l9 16H3l9-16z" /><path d="M12 10v4" /><path d="M12 17h.01" />
+        </svg>
+      </span>
+      <span class="tile-body">
+        <span class="tile-title">אר״ן — אירוע רב נפגעים</span>
+        <span class="tile-meta">כל מלאי O- · ללא בדיקת התאמה</span>
+      </span>
+      <span class="tile-arrow" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+      </span>
+    </a>
+  </nav>
+</section>
+{% endblock %}

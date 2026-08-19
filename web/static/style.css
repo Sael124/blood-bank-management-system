@@ -1,0 +1,629 @@
+/* Blood bank interface: right to left Hebrew, deep navy chrome, and one colour
+   per clinical intent - green adds to the bank, blue takes out routinely, red is
+   emergency only. Red is never used decoratively, so a red screen always means
+   something clinically serious. */
+
+:root {
+  --color-page: #eef2f7;
+  --color-surface: #ffffff;
+  --color-text: #101a26;
+  --color-muted: #64748b;
+  --color-border: #dde4ec;
+
+  --color-primary: #b3121f;
+  --color-primary-dark: #7d0c16;
+  --color-primary-soft: #fdeef0;
+
+  --color-intake: #0d7a63;
+  --color-dispense: #1f47ad;
+
+  --color-success: #0f7a4d;
+  --color-success-soft: #e7f6ee;
+  --color-warning: #a35c00;
+  --color-warning-soft: #fdf3e2;
+  --color-info: #1f5f9e;
+  --color-info-soft: #eaf2fb;
+
+  --gradient-header: linear-gradient(100deg, #08101c 0%, #142339 55%, #1b2f4d 100%);
+  --gradient-intake: linear-gradient(135deg, #0b6d58 0%, #17a882 100%);
+  --gradient-dispense: linear-gradient(135deg, #17368c 0%, #2f6fe4 100%);
+  --gradient-emergency: linear-gradient(135deg, #6d0b16 0%, #b3121f 55%, #d92b3d 100%);
+
+  --radius-xl: 22px;
+  --radius-lg: 14px;
+  --radius-sm: 9px;
+  --shadow-card: 0 1px 2px rgba(16, 28, 44, 0.06), 0 10px 28px rgba(16, 28, 44, 0.07);
+  --shadow-tile: 0 14px 30px rgba(8, 16, 28, 0.18);
+  --shadow-tile-hover: 0 22px 46px rgba(8, 16, 28, 0.28);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-page);
+  color: var(--color-text);
+  font-family: "Segoe UI", "Arial", "Noto Sans Hebrew", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+svg.icon,
+.tile svg,
+.topbar-button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.app-header {
+  background: var(--gradient-header);
+  border-bottom: 3px solid var(--color-primary);
+  color: #ffffff;
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-mark {
+  background: var(--color-primary);
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  padding: 9px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  box-shadow: 0 6px 16px rgba(179, 18, 31, 0.4);
+}
+
+.brand-text { display: flex; flex-direction: column; line-height: 1.3; }
+.brand-text strong { font-size: 18px; }
+.brand-text small { color: #9db0c7; font-size: 12px; letter-spacing: 0.3px; }
+
+/* --------------------------------------------------------------- top bar */
+
+.topbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.topbar-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: #e6edf6;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 9px 18px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.topbar-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.32);
+  transform: translateY(-1px);
+}
+
+.topbar-button svg { width: 19px; height: 19px; }
+
+/* Kept neutral rather than red: red is reserved for the emergency flow, so the
+   way back to the menu must not look like an alarm. */
+.topbar-button--back {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+.topbar-button--back:hover { background: rgba(255, 255, 255, 0.24); }
+
+.topbar-button--disabled,
+.topbar-button--disabled:hover {
+  color: #7d8ea4;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.topbar-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* ------------------------------------------------------------------ main */
+
+.app-main {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+/* Each screen carries the colour of its own clinical intent, so the operator can
+   tell at a glance which task is open. */
+.page-intake { --accent: var(--color-intake); }
+.page-dispense { --accent: var(--color-dispense); }
+.page-emergency { --accent: var(--color-primary); }
+.page-logs { --accent: #33486a; }
+
+.page-head {
+  margin-bottom: 24px;
+  border-inline-start: 5px solid var(--accent, var(--color-primary));
+  padding-inline-start: 16px;
+}
+
+.page-head h1 { margin: 0 0 6px; font-size: 27px; letter-spacing: -0.2px; }
+.page-subtitle { margin: 0; color: var(--color-muted); max-width: 760px; }
+
+.app-footer {
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 13px;
+  padding: 18px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ------------------------------------------------------------ home screen */
+
+.page-home {
+  background:
+    radial-gradient(1100px 520px at 88% -8%, rgba(31, 71, 173, 0.1), transparent 60%),
+    radial-gradient(900px 460px at 6% 108%, rgba(179, 18, 31, 0.1), transparent 62%),
+    var(--color-page);
+}
+
+.page-home .app-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 960px;
+}
+
+.home-head { text-align: center; margin-bottom: 26px; }
+
+.home-eyebrow {
+  display: inline-block;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 2.4px;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border: 1px solid #f3ccd2;
+  border-radius: 999px;
+  padding: 5px 16px;
+  margin-bottom: 16px;
+}
+
+.home-head h1 {
+  margin: 0 0 8px;
+  font-size: 36px;
+  letter-spacing: -0.8px;
+  line-height: 1.2;
+}
+
+.home-subtitle { margin: 0 auto; color: var(--color-muted); max-width: 520px; }
+
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.tile {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 126px;
+  padding: 24px 26px;
+  border-radius: var(--radius-xl);
+  color: #ffffff;
+  text-decoration: none;
+  box-shadow: var(--shadow-tile);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* A soft highlight in the corner keeps the large colour blocks from looking flat. */
+.tile::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: -30%;
+  top: -60%;
+  width: 70%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 65%);
+  pointer-events: none;
+}
+
+.tile:hover { transform: translateY(-5px); box-shadow: var(--shadow-tile-hover); }
+.tile:focus-visible { outline: 3px solid #ffffff; outline-offset: 3px; }
+
+.tile--intake { background: var(--gradient-intake); }
+.tile--dispense { background: var(--gradient-dispense); }
+
+.tile--emergency {
+  grid-column: 1 / -1;
+  background: var(--gradient-emergency);
+  min-height: 146px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.tile-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+}
+
+.tile-icon svg { width: 32px; height: 32px; stroke-width: 1.7; }
+.tile--emergency .tile-icon { width: 70px; height: 70px; }
+.tile--emergency .tile-icon svg { width: 38px; height: 38px; }
+
+.tile-body { display: flex; flex-direction: column; }
+.tile-title { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+
+/* States up front what the operator must have at hand, so the details are known
+   before the form is opened rather than halfway through filling it. */
+.tile-meta {
+  align-self: flex-start;
+  margin-top: 9px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+
+.tile--emergency .tile-title { font-size: 29px; letter-spacing: 0.2px; }
+.tile--emergency .tile-meta { font-size: 13px; letter-spacing: 0.3px; }
+
+.tile-arrow {
+  margin-inline-start: auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.tile-arrow svg { width: 20px; height: 20px; }
+
+/* The layout is right to left, so "forward" moves the arrow leftwards. */
+.tile:hover .tile-arrow { transform: translateX(-6px); background: rgba(255, 255, 255, 0.26); }
+
+@media (max-width: 760px) {
+  .home-actions { grid-template-columns: 1fr; }
+  .home-head h1 { font-size: 31px; }
+}
+
+/* ----------------------------------------------------------------- cards */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.card h2 { margin: 0 0 16px; font-size: 18px; }
+.card-note { color: var(--color-muted); font-size: 13px; margin: 14px 0 0; }
+.card--note { background: #fbfcfe; }
+.card--error { border-color: #f0c2c9; background: var(--color-primary-soft); }
+
+.note-list { margin: 0; padding-inline-start: 20px; color: var(--color-muted); }
+.note-list li { margin-bottom: 6px; }
+
+.two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .two-column { grid-template-columns: 1fr; }
+}
+
+/* ----------------------------------------------------------------- forms */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 700px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
+
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.field label { font-weight: 600; font-size: 14px; }
+
+.field input,
+.field select {
+  font: inherit;
+  color: inherit;
+  padding: 11px 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--color-info);
+  box-shadow: 0 0 0 3px var(--color-info-soft);
+}
+
+.field--invalid input,
+.field--invalid select {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.field-hint { color: var(--color-muted); font-size: 12px; }
+
+.form-actions { margin-top: 8px; display: flex; gap: 12px; }
+.confirm-actions { margin-top: 20px; display: flex; gap: 12px; align-items: center; }
+
+.button {
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 12px 24px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.button--primary {
+  background: var(--gradient-dispense);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(31, 71, 173, 0.28);
+}
+.button--primary:hover { transform: translateY(-1px); }
+
+.button--intake {
+  background: var(--gradient-intake);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(13, 122, 99, 0.3);
+}
+.button--intake:hover { transform: translateY(-1px); }
+
+.button--ghost {
+  background: #ffffff;
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+.button--ghost:hover { background: var(--color-page); }
+
+.button--emergency {
+  background: var(--gradient-emergency);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 17px 32px;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 12px 28px rgba(109, 11, 22, 0.45);
+}
+.button--emergency:hover { transform: translateY(-1px); }
+.button--emergency:disabled {
+  background: #94a2b3;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* -------------------------------------------------------------- messages */
+
+.messages { margin-bottom: 24px; display: flex; flex-direction: column; gap: 10px; }
+
+.message {
+  padding: 14px 17px;
+  border-radius: var(--radius-sm);
+  border-inline-start: 5px solid transparent;
+  font-size: 15px;
+  box-shadow: 0 1px 2px rgba(16, 28, 44, 0.04);
+}
+
+.message--success { background: var(--color-success-soft); border-color: var(--color-success); }
+.message--error { background: var(--color-primary-soft); border-color: var(--color-primary); }
+.message--warning { background: var(--color-warning-soft); border-color: var(--color-warning); }
+.message--info { background: var(--color-info-soft); border-color: var(--color-info); }
+
+/* ---------------------------------------------------------------- tables */
+
+.table { width: 100%; border-collapse: collapse; font-size: 15px; }
+
+.table th,
+.table td {
+  text-align: right;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table thead th {
+  background: #f5f8fc;
+  font-size: 13px;
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.table tbody tr:hover { background: #fafbfd; }
+.table tfoot th { background: #f5f8fc; font-weight: 700; }
+.table--compact { font-size: 14px; }
+.table--compact th, .table--compact td { padding: 8px 10px; }
+.table--log { font-size: 13.5px; }
+
+.row--reserve { background: var(--color-primary-soft); }
+.row--reserve:hover { background: #fbe3e6; }
+
+/* A long report is previewed and expanded on demand. The rows beyond the preview
+   are rendered by the server and only hidden here, so expanding needs no extra
+   request and no round trip to the database. */
+.table-collapsible.is-collapsed .row--extra { display: none; }
+
+.table-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-info);
+  background: #f5f8fc;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 8px 18px;
+  margin-top: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.table-toggle:hover { background: var(--color-info-soft); border-color: #bcd4ec; }
+.table-toggle .icon { width: 17px; height: 17px; transition: transform 0.2s ease; }
+.table-toggle[aria-expanded="true"] .icon { transform: rotate(180deg); }
+
+.cell-nowrap { white-space: nowrap; }
+.cell-details { color: var(--color-muted); }
+.text-empty { color: var(--color-muted); }
+
+/* --------------------------------------------------------------- badges */
+
+.blood-badge {
+  display: inline-block;
+  min-width: 44px;
+  text-align: center;
+  font-weight: 700;
+  background: #eef2f8;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px 11px;
+  font-size: 14px;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 3px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.tag--success { background: var(--color-success-soft); color: var(--color-success); }
+.tag--partial { background: var(--color-warning-soft); color: var(--color-warning); }
+.tag--warning { background: var(--color-warning-soft); color: var(--color-warning); }
+.tag--rejected { background: var(--color-primary-soft); color: var(--color-primary); }
+.tag--failure { background: var(--color-primary-soft); color: var(--color-primary); }
+.tag--emergency { background: var(--color-primary); color: #ffffff; }
+.tag--reserve { background: var(--color-primary-soft); color: var(--color-primary); }
+
+/* ------------------------------------------------------------ statistics */
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-card--reserve { border-color: #f0c2c9; background: var(--color-primary-soft); }
+.stat-label { color: var(--color-muted); font-size: 13px; }
+.stat-value { font-size: 32px; font-weight: 700; line-height: 1.2; }
+
+/* -------------------------------------------------------------- emergency */
+
+.emergency-panel {
+  background: var(--gradient-emergency);
+  color: #ffffff;
+  border-radius: var(--radius-xl);
+  padding: 30px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-tile);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 28px;
+  align-items: center;
+}
+
+@media (max-width: 800px) {
+  .emergency-panel { grid-template-columns: 1fr; }
+}
+
+.emergency-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  text-align: center;
+}
+
+.emergency-stat-label { font-size: 14px; color: #f7d5d9; }
+.emergency-stat-value { font-size: 56px; font-weight: 700; line-height: 1; }
+
+.emergency-form .field label { color: #ffffff; }
+
+/* The panel text is white, but the input keeps a white background, so its text
+   colour must be set explicitly instead of inherited. */
+.emergency-form .field input {
+  color: var(--color-text);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+.emergency-empty { margin: 12px 0 0; font-size: 14px; color: #ffd9de; }

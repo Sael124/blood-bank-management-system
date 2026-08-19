@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}ניפוק מנות דם בשגרה{% endblock %}
+{% block body_class %}page-dispense{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>ניפוק מנות דם בשגרה</h1>
+  <p class="page-subtitle">
+    ניפוק לחדרי ניתוח וטראומה. אם אין מלאי מהסוג המבוקש, המערכת תמליץ על סוג חלופי תואם
+    לפי כללי התאימות ולפי שכיחות סוגי הדם באוכלוסייה.
+  </p>
+</section>
+
+<div class="two-column">
+  <div class="card card--form">
+    <form method="post" action="{{ url_for('becs.routine_dispense_preview') }}" novalidate>
+      <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+
+      <div class="field {% if invalid_field == 'blood_type' %}field--invalid{% endif %}">
+        <label for="blood_type">סוג הדם המבוקש</label>
+        <select id="blood_type" name="blood_type" required>
+          <option value="" disabled {% if not form.blood_type %}selected{% endif %}>נא לבחור סוג דם</option>
+          {% for blood_type in blood_types %}
+            <option value="{{ blood_type.value }}" {% if form.blood_type == blood_type.value %}selected{% endif %}>
+              {{ blood_type.value }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field {% if invalid_field == 'units' %}field--invalid{% endif %}">
+        <label for="units">מספר מנות דרושות</label>
+        <input type="number" id="units" name="units" value="{{ form.units }}"
+               min="1" max="{{ max_units }}" required>
+      </div>
+
+      <div class="field {% if invalid_field == 'destination' %}field--invalid{% endif %}">
+        <label for="destination">יעד הניפוק</label>
+        <input type="text" id="destination" name="destination" value="{{ form.destination }}"
+               maxlength="120" placeholder="לדוגמה: חדר ניתוח 3">
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button button--primary">בדיקת זמינות והמלצה</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>מלאי נוכחי</h2>
+    {% if stock %}
+      <table class="table table--compact">
+        <thead>
+          <tr><th>סוג דם</th><th>מנות במלאי</th></tr>
+        </thead>
+        <tbody>
+          {% for blood_type in blood_types %}
+            <tr class="{% if blood_type == universal_donor %}row--reserve{% endif %}">
+              <td><span class="blood-badge">{{ blood_type.value }}</span></td>
+              <td class="{% if stock[blood_type] == 0 %}text-empty{% endif %}">{{ stock[blood_type] }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="card-note">
+        השורה המודגשת היא רזרבת {{ universal_donor.value }} לאירועי אר״ן, ולכן היא נשמרת לסוף.
+      </p>
+    {% else %}
+      <p class="text-empty">לא ניתן להציג את המלאי כרגע.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

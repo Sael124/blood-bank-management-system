@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}מלאי ולוג פעולות{% endblock %}
+{% block body_class %}page-logs{% endblock %}
+
+{#- One toggle per report: the same control expands the table and returns it to
+    the preview, so the operator never loses the initial view. It stays hidden
+    until the script activates it, and it is omitted when there is nothing to
+    expand. -#}
+{% macro expand_toggle(total_rows, visible_rows) %}
+  {% if total_rows > visible_rows %}
+    {% set more_label = 'הצג עוד (' ~ (total_rows - visible_rows) ~ ')' %}
+    <button type="button" class="table-toggle" aria-expanded="false" hidden
+            data-collapsible-toggle
+            data-label-more="{{ more_label }}"
+            data-label-less="הצג פחות">
+      <svg class="icon table-toggle-chevron" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+      <span data-collapsible-label>{{ more_label }}</span>
+    </button>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<section class="page-head">
+  <h1>מלאי בנק הדם ולוג הפעולות</h1>
+  <p class="page-subtitle">
+    תמונת מצב של המלאי, לצד תיעוד מלא של כל פעולה שבוצעה במערכת.
+  </p>
+</section>
+
+{% if not overview %}
+  <div class="card card--error">
+    <p>לא ניתן לטעון את הנתונים כרגע.</p>
+  </div>
+{% else %}
+
+<div class="stat-row">
+  <div class="stat-card">
+    <span class="stat-label">סך המנות במלאי</span>
+    <span class="stat-value">{{ overview.total_units }}</span>
+  </div>
+  <div class="stat-card stat-card--reserve">
+    <span class="stat-label">רזרבת {{ universal_donor.value }} לאר״ן</span>
+    <span class="stat-value">{{ overview.universal_donor_units }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">סוגי דם שאזלו</span>
+    <span class="stat-value">{{ overview.empty_blood_types | length }}</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>מלאי לפי סוג דם</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>סוג דם</th>
+        <th>מנות במלאי</th>
+        <th>שכיחות באוכלוסייה</th>
+        <th>הערה</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in overview.rows %}
+        <tr class="{% if row.is_universal_donor %}row--reserve{% endif %}">
+          <td><span class="blood-badge">{{ row.blood_type.value }}</span></td>
+          <td class="{% if row.units_in_stock == 0 %}text-empty{% endif %}">{{ row.units_in_stock }}</td>
+          <td>{{ '%.1f' | format(row.population_share_percent) }}%</td>
+          <td>
+            {% if row.is_universal_donor %}
+              <span class="tag tag--reserve">רזרבה לאר״ן</span>
+            {% elif row.units_in_stock == 0 %}
+              <span class="tag tag--warning">אזל מהמלאי</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>לוג פעולות</h2>
+  {% if overview.activity %}
+    <div class="table-collapsible is-collapsed" data-collapsible>
+      <table class="table table--log">
+        <thead>
+          <tr>
+            <th>זמן</th>
+            <th>פעולה</th>
+            <th>תוצאה</th>
+            <th>מבצע</th>
+            <th>פרטים</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in overview.activity %}
+            <tr class="{{ 'row--extra' if loop.index > preview_rows }}">
+              <td class="cell-nowrap">{{ entry.created_at | datetime }}</td>
+              <td>{{ entry.action | action_label }}</td>
+              <td>
+                <span class="tag tag--{{ entry.outcome.value | lower }}">
+                  {{ entry.outcome | outcome_label }}
+                </span>
+              </td>
+              <td>{{ entry.actor }}</td>
+              <td class="cell-details">{{ entry.details }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {{ expand_toggle(overview.activity | length, preview_rows) }}
+    </div>
+    {% if overview.activity | length >= activity_limit %}
+      <p class="card-note">מוצגות {{ activity_limit }} הפעולות האחרונות.</p>
+    {% endif %}
+  {% else %}
+    <p class="text-empty">אין עדיין פעולות רשומות.</p>
+  {% endif %}
+</div>
+
+<div class="two-column">
+  <div class="card">
+    <h2>תרומות אחרונות</h2>
+    {% if overview.donations %}
+      <div class="table-collapsible is-collapsed" data-collapsible>
+        <table class="table table--compact">
+          <thead>
+            <tr>
+              <th>מנה</th>
+              <th>סוג דם</th>
+              <th>תורם</th>
+              <th>תאריך תרומה</th>
+              <th>מצב</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for donation in overview.donations %}
+              <tr class="{{ 'row--extra' if loop.index > preview_rows }}">
+                <td>#{{ donation.unit_id }}</td>
+                <td><span class="blood-badge">{{ donation.blood_type.value }}</span></td>
+                <td>{{ donation.donor_name }}</td>
+                <td class="cell-nowrap">{{ donation.donation_date | date }}</td>
+                <td>{{ donation.status | status_label }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {{ expand_toggle(overview.donations | length, preview_rows) }}
+      </div>
+      {% if overview.donations | length >= records_limit %}
+        <p class="card-note">מוצגות {{ records_limit }} התרומות האחרונות.</p>
+      {% endif %}
+    {% else %}
+      <p class="text-empty">אין עדיין תרומות.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>ניפוקים אחרונים</h2>
+    {% if overview.dispenses %}
+      <div class="table-collapsible is-collapsed" data-collapsible>
+        <table class="table table--compact">
+          <thead>
+            <tr>
+              <th>ניפוק</th>
+              <th>סוג</th>
+              <th>בוקש</th>
+              <th>נופק</th>
+              <th>פירוט</th>
+              <th>יעד</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dispense in overview.dispenses %}
+              <tr class="{{ 'row--extra' if loop.index > preview_rows }}">
+                <td>#{{ dispense.dispense_id }}</td>
+                <td>
+                  <span class="tag {% if dispense.mode.value == 'EMERGENCY' %}tag--emergency{% else %}tag--success{% endif %}">
+                    {{ dispense.mode | mode_label }}
+                  </span>
+                </td>
+                <td>
+                  {% if dispense.requested_blood_type %}
+                    {{ dispense.requested_blood_type.value }} × {{ dispense.units_requested }}
+                  {% else %}—{% endif %}
+                </td>
+                <td>{{ dispense.units_supplied }}</td>
+                <td class="cell-nowrap">{{ dispense.supplied_breakdown }}</td>
+                <td>{{ dispense.destination }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {{ expand_toggle(overview.dispenses | length, preview_rows) }}
+      </div>
+      {% if overview.dispenses | length >= records_limit %}
+        <p class="card-note">מוצגים {{ records_limit }} הניפוקים האחרונים.</p>
+      {% endif %}
+    {% else %}
+      <p class="text-empty">אין עדיין ניפוקים.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

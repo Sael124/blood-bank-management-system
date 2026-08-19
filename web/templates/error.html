@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}שגיאה {{ status_code }}{% endblock %}
+
+{% block content %}
+<div class="card card--error">
+  <h1>שגיאה {{ status_code }}</h1>
+  <p>{{ message }}</p>
+  <a href="{{ url_for('becs.home') }}" class="button button--primary">חזרה למסך הראשי</a>
+</div>
+{% endblock %}

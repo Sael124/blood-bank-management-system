@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}אישור ניפוק בשגרה{% endblock %}
+{% block body_class %}page-dispense{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>המלצת המערכת לניפוק</h1>
+  <p class="page-subtitle">
+    התבקשו {{ plan.units_requested }} מנות מסוג
+    <span class="blood-badge">{{ plan.requested_blood_type.value }}</span>
+    ליעד {{ preview.destination }}. הניפוק יבוצע רק לאחר אישורך.
+  </p>
+</section>
+
+{% if plan.uses_substitutes %}
+  <div class="message message--warning">
+    אין מלאי מספק מסוג {{ plan.requested_blood_type.value }}, ולכן המערכת ממליצה על סוג חלופי
+    תואם. ההמלצה מעדיפה את הסוג השכיח יותר באוכלוסייה, כדי לשמור על הסוגים הנדירים.
+  </div>
+{% endif %}
+
+{% if plan.uses_universal_donor_reserve %}
+  <div class="message message--error">
+    ההמלצה כוללת מנות מסוג {{ universal_donor.value }}, שהוא רזרבת החירום לאירועי אר״ן.
+    יש לאשר זאת רק אם אין חלופה אחרת.
+  </div>
+{% endif %}
+
+{% if not plan.is_fully_fulfilled %}
+  <div class="message message--warning">
+    ניתן לספק {{ plan.units_supplied }} מנות בלבד מתוך {{ plan.units_requested }} שהתבקשו.
+    חסרות {{ plan.missing_units }} מנות.
+  </div>
+{% endif %}
+
+<div class="card">
+  <h2>פירוט ההקצאה</h2>
+  <table class="table">
+    <thead>
+      <tr><th>סוג דם שינופק</th><th>מספר מנות</th><th>סוג ההקצאה</th></tr>
+    </thead>
+    <tbody>
+      {% for allocation in plan.allocations %}
+        <tr>
+          <td><span class="blood-badge">{{ allocation.blood_type.value }}</span></td>
+          <td>{{ allocation.units }}</td>
+          <td>
+            {% if allocation.is_substitute %}
+              <span class="tag tag--warning">סוג חלופי תואם</span>
+            {% else %}
+              <span class="tag tag--success">התאמה מדויקת</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th>סך הכול</th>
+        <th>{{ plan.units_supplied }}</th>
+        <th></th>
+      </tr>
+    </tfoot>
+  </table>
+
+  <form method="post" action="{{ url_for('becs.routine_dispense_confirm') }}" class="confirm-actions">
+    <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+    <input type="hidden" name="blood_type" value="{{ form.blood_type }}">
+    <input type="hidden" name="units" value="{{ form.units }}">
+    <input type="hidden" name="destination" value="{{ form.destination }}">
+    <button type="submit" class="button button--primary">אישור וניפוק המנות</button>
+    <a href="{{ url_for('becs.routine_dispense_form') }}" class="button button--ghost">ביטול</a>
+  </form>
+  <p class="card-note">
+    ההקצאה מחושבת מחדש מול המלאי בזמן האישור, כדי למנוע ניפוק כפול של אותה מנה.
+  </p>
+</div>
+{% endblock %}

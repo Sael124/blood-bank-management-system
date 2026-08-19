@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local configuration may contain a database password - never commit it.
+.env
+
+# Runtime logs, including the rotated backups. The folder is recreated on startup.
+logs/
+
+# The course assignment brief belongs to the lecturer, not in a public repository.
+*.docx

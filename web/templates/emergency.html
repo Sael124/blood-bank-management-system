@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}ניפוק חירום אר״ן{% endblock %}
+{% block body_class %}page-emergency{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>ניפוק מנות דם במצב אר״ן</h1>
+  <p class="page-subtitle">
+    אירוע רב נפגעים. הפצועים מגיעים ללא זיהוי סוג דם, ולכן ניתן לנפק אך ורק
+    {{ universal_donor.value }} — התורם האוניברסלי שמתאים לכל נתרם.
+  </p>
+</section>
+
+<div class="emergency-panel">
+  <div class="emergency-stat">
+    <span class="emergency-stat-label">מנות {{ universal_donor.value }} זמינות כרגע</span>
+    <span class="emergency-stat-value">
+      {% if available_units is none %}—{% else %}{{ available_units }}{% endif %}
+    </span>
+  </div>
+
+  <form method="post" action="{{ url_for('becs.emergency_dispense') }}" class="emergency-form">
+    <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+
+    <div class="field">
+      <label for="destination">יעד הניפוק</label>
+      <input type="text" id="destination" name="destination"
+             value="{{ default_destination }}" maxlength="120">
+    </div>
+
+    <button type="submit" class="button button--emergency"
+            {% if available_units is not none and available_units == 0 %}disabled{% endif %}>
+      ניפוק כל מלאי {{ universal_donor.value }}
+    </button>
+
+    {% if available_units is not none and available_units == 0 %}
+      <p class="emergency-empty">אין מנות {{ universal_donor.value }} במלאי. יש להפעיל נוהל השלמת מלאי חירום.</p>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card card--note">
+  <h2>למה רק {{ universal_donor.value }} במצב אר״ן?</h2>
+  <p>
+    בדיקת סוג דם והצלבה דורשות זמן שאין באירוע רב נפגעים. מנת
+    {{ universal_donor.value }} אינה נושאת את האנטיגנים A, B ו־RhD, ולכן היא הסוג היחיד
+    שאפשר לתת לכל פצוע בלי לדעת את סוג הדם שלו.
+  </p>
+  <p>
+    מכאן נובעת האסטרטגיה בשגרה: {{ universal_donor.value }} מהווה כ־3% מהאוכלוסייה בלבד, ולכן
+    המערכת מתייחסת אליו כרזרבה אסטרטגית ומנפקת אותו בשגרה רק כמוצא אחרון.
+  </p>
+</div>
+{% endblock %}
