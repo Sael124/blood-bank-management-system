@@ -12,3 +12,7 @@ logs/
 
 # The course assignment brief belongs to the lecturer, not in a public repository.
 *.docx
+
+# The submission copy carries the team's identity numbers, which must never
+# reach a public repository. Only the redacted CREDITS.TXT in the root is tracked.
+submission/
