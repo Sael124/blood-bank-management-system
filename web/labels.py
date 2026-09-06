@@ -21,6 +21,7 @@ ACTION_LABELS = {
     "DATABASE_INITIALISED": "אתחול בסיס נתונים",
     "AUDIT_TRAIL_EXPORTED": "ייצוא יומן תיעוד",
     "AUDIT_TRAIL_VERIFIED": "בדיקת שלמות היומן",
+    "RECORDS_EXPORTED": "ייצוא כל הרשומות",
 }
 
 OUTCOME_LABELS = {
@@ -40,6 +41,7 @@ ENTITY_LABELS = {
     "DISPENSE": "ניפוק",
     "DATABASE": "בסיס נתונים",
     "AUDIT_TRAIL": "יומן תיעוד",
+    "RECORDS": "עותק רשומות",
 }
 
 OPERATION_LABELS = {

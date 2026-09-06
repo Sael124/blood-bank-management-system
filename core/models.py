@@ -55,6 +55,7 @@ class AuditEntity(Enum):
     DISPENSE = "DISPENSE"
     DATABASE = "DATABASE"
     AUDIT_TRAIL = "AUDIT_TRAIL"
+    RECORDS = "RECORDS"
 
     def __str__(self) -> str:
         return self.value

@@ -25,6 +25,7 @@ from core.models import (
     UnitStatus,
 )
 from core.blood_types import DISPLAY_ORDER, UNIVERSAL_DONOR
+from core.records_copy import BloodUnitCopy, DispenseCopy, DonorCopy
 
 
 # --------------------------------------------------------------------------- #
@@ -260,6 +261,79 @@ def recent_dispenses(cursor: pyodbc.Cursor, limit: int = 50) -> list[DispenseRec
             destination=row.destination,
             created_at=row.created_at,
             supplied_breakdown=row.supplied_breakdown,
+        )
+        for row in cursor.fetchall()
+    ]
+
+
+# --------------------------------------------------------------------------- #
+# Complete copies of records
+# --------------------------------------------------------------------------- #
+
+def all_donors(cursor: pyodbc.Cursor) -> list[DonorCopy]:
+    """Return every donor, oldest registration first."""
+    cursor.execute(
+        """
+        SELECT donor_id, full_name, blood_type, registered_at
+        FROM dbo.donors
+        ORDER BY registered_at ASC, donor_id ASC
+        """
+    )
+    return [
+        DonorCopy(
+            donor_id=row.donor_id.strip(),
+            full_name=row.full_name,
+            blood_type=row.blood_type,
+            registered_at=row.registered_at,
+        )
+        for row in cursor.fetchall()
+    ]
+
+
+def all_blood_units(cursor: pyodbc.Cursor) -> list[BloodUnitCopy]:
+    """Return every blood unit, including those already dispensed."""
+    cursor.execute(
+        """
+        SELECT unit_id, donor_id, blood_type, donation_date, status,
+               recorded_at, dispense_id
+        FROM dbo.blood_units
+        ORDER BY unit_id ASC
+        """
+    )
+    return [
+        BloodUnitCopy(
+            unit_id=int(row.unit_id),
+            donor_id=row.donor_id.strip(),
+            blood_type=row.blood_type,
+            donation_date=row.donation_date,
+            status=row.status,
+            recorded_at=row.recorded_at,
+            dispense_id=int(row.dispense_id) if row.dispense_id is not None else None,
+        )
+        for row in cursor.fetchall()
+    ]
+
+
+def all_dispenses(cursor: pyodbc.Cursor) -> list[DispenseCopy]:
+    """Return every dispense event, oldest first."""
+    cursor.execute(
+        """
+        SELECT dispense_id, mode, requested_blood_type, units_requested,
+               units_supplied, destination, supplied_breakdown, created_at
+        FROM dbo.dispenses
+        ORDER BY dispense_id ASC
+        """
+    )
+    return [
+        DispenseCopy(
+            dispense_id=int(row.dispense_id),
+            mode=row.mode,
+            requested_blood_type=row.requested_blood_type or "",
+            units_requested=int(row.units_requested),
+            units_supplied=int(row.units_supplied),
+            destination=row.destination,
+            supplied_breakdown=row.supplied_breakdown,
+            created_at=row.created_at,
         )
         for row in cursor.fetchall()
     ]

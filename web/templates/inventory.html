@@ -29,6 +29,22 @@
   </p>
 </section>
 
+<div class="card audit-tools">
+  <div class="audit-tools-text">
+    <h2>עותק אלקטרוני של כל הרשומות</h2>
+    <p class="card-note">
+      ייצוא מלא של התורמים, מנות הדם, הניפוקים ויומן התיעוד לקובץ
+      XML, בפורמט נייד ששומר על התוכן והמשמעות של כל רשומה.
+    </p>
+  </div>
+  <div class="audit-tools-actions">
+    <form method="post" action="{{ url_for('becs.export_records') }}">
+      <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+      <button type="submit" class="button button--primary">ייצוא כל הרשומות ל-XML</button>
+    </form>
+  </div>
+</div>
+
 {% if not overview %}
   <div class="card card--error">
     <p>לא ניתן לטעון את הנתונים כרגע.</p>
