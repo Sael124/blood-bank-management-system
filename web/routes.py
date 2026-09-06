@@ -1,4 +1,4 @@
-"""HTTP endpoints for the four screens of the system."""
+"""HTTP endpoints for the operator screens of the system."""
 
 from __future__ import annotations
 
@@ -19,7 +19,13 @@ from flask import (
 from core.blood_types import DISPLAY_ORDER, UNIVERSAL_DONOR
 from core.errors import BloodBankError
 from core.validation import DEFAULT_DESTINATION, MAX_UNITS_PER_REQUEST
-from services import audit_service, dispense_service, donation_service, inventory_service
+from services import (
+    audit_service,
+    dispense_service,
+    donation_service,
+    inventory_service,
+    records_export_service,
+)
 
 from .labels import CHAIN_FAILURE_LABELS, label
 
@@ -276,6 +282,27 @@ def inventory():
         preview_rows=TABLE_PREVIEW_ROWS,
         activity_limit=inventory_service.ACTIVITY_LOG_LIMIT,
         records_limit=inventory_service.RECENT_RECORDS_LIMIT,
+    )
+
+
+@blueprint.post("/records/export")
+def export_records():
+    """Download every stored record as the electronic copy required by 11.10(b)."""
+    try:
+        document, snapshot = records_export_service.export_xml()
+    except BloodBankError as error:
+        flash(str(error), "error")
+        return redirect(url_for("becs.inventory"))
+
+    logger.info("Exported a complete records copy of %s rows", snapshot.total_records)
+    filename = f"becs-records-{datetime.now():%Y%m%d-%H%M%S}.xml"
+    return Response(
+        document,
+        mimetype="application/xml",
+        headers={
+            "Content-Type": "application/xml; charset=utf-8",
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
     )
 
 

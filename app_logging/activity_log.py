@@ -65,6 +65,7 @@ class ActivityAction(Enum):
     DATABASE_INITIALISED = "DATABASE_INITIALISED"
     AUDIT_TRAIL_EXPORTED = "AUDIT_TRAIL_EXPORTED"
     AUDIT_TRAIL_VERIFIED = "AUDIT_TRAIL_VERIFIED"
+    RECORDS_EXPORTED = "RECORDS_EXPORTED"
 
     def __str__(self) -> str:
         return self.value
