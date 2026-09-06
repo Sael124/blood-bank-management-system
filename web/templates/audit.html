@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}יומן תיעוד{% endblock %}
+{% block body_class %}page-audit{% endblock %}
+
+{#- A hash is 64 characters long and unreadable in a table cell, so only its
+    beginning is shown. The full value stays available in the tooltip and in the
+    exported copy, which is where it is actually compared. -#}
+{% macro hash_cell(value) %}
+  {% if value %}
+    <code class="hash" title="{{ value }}">{{ value[:10] }}…</code>
+  {% else %}
+    <span class="text-empty">—</span>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<section class="page-head">
+  <h1>יומן תיעוד הפעולות</h1>
+  <p class="page-subtitle">
+    תיעוד כרונולוגי מלא של כל פעולה במערכת: מי ביצע, מתי, על איזו רשומה, ומה היה
+    הערך לפני השינוי ואחריו. היומן ניתן להוספה בלבד ואינו ניתן לשינוי או למחיקה.
+  </p>
+</section>
+
+<form class="card card--filter" method="get" action="{{ url_for('becs.audit_trail') }}">
+  <h2>סינון היומן</h2>
+  <div class="filter-grid">
+    <div class="field {% if invalid_field == 'date_from' %}field--invalid{% endif %}">
+      <label for="date_from">מתאריך</label>
+      <input type="date" id="date_from" name="date_from" value="{{ form.date_from }}">
+    </div>
+
+    <div class="field {% if invalid_field == 'date_to' %}field--invalid{% endif %}">
+      <label for="date_to">עד תאריך</label>
+      <input type="date" id="date_to" name="date_to" value="{{ form.date_to }}">
+    </div>
+
+    <div class="field {% if invalid_field == 'actor' %}field--invalid{% endif %}">
+      <label for="actor">מבצע הפעולה</label>
+      <input type="text" id="actor" name="actor" value="{{ form.actor }}"
+             maxlength="60" placeholder="שם משתמש, מלא או חלקי">
+    </div>
+
+    <div class="field {% if invalid_field == 'action' %}field--invalid{% endif %}">
+      <label for="action">סוג הפעולה</label>
+      <select id="action" name="action">
+        <option value="">כל הפעולות</option>
+        {% for action in actions %}
+          <option value="{{ action }}" {% if form.action == action %}selected{% endif %}>
+            {{ action | action_label }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field {% if invalid_field == 'outcome' %}field--invalid{% endif %}">
+      <label for="outcome">תוצאת הפעולה</label>
+      <select id="outcome" name="outcome">
+        <option value="">כל התוצאות</option>
+        {% for outcome in outcomes %}
+          <option value="{{ outcome }}" {% if form.outcome == outcome %}selected{% endif %}>
+            {{ outcome | outcome_label }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="button button--primary">סינון</button>
+    <a href="{{ url_for('becs.audit_trail') }}" class="button button--ghost">ניקוי הסינון</a>
+  </div>
+</form>
+
+<div class="card audit-tools">
+  <div class="audit-tools-text">
+    <h2>עותקים ובדיקת שלמות</h2>
+    <p class="card-note">
+      הייצוא מפיק עותק אלקטרוני מלא של הרשומות המסוננות, כולל חתימות הגיבוב.
+      בדיקת השלמות מחשבת מחדש את שרשרת הגיבוב של היומן כולו ומדווחת אם רשומה
+      שונתה, הוסרה או נוספה שלא דרך המערכת.
+    </p>
+  </div>
+
+  <div class="audit-tools-actions">
+    {#- Both tools act on the filter currently in force, so it travels with them
+        as hidden fields rather than being read from the address a second time. -#}
+    <form method="post" action="{{ url_for('becs.audit_trail_export') }}">
+      <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+      {% for field, value in form.items() %}
+        <input type="hidden" name="{{ field }}" value="{{ value }}">
+      {% endfor %}
+      <button type="submit" class="button button--primary">ייצוא לקובץ CSV</button>
+    </form>
+
+    <form method="post" action="{{ url_for('becs.audit_trail_verify') }}">
+      <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+      {% for field, value in form.items() %}
+        <input type="hidden" name="{{ field }}" value="{{ value }}">
+      {% endfor %}
+      <button type="submit" class="button button--ghost">בדיקת שלמות היומן</button>
+    </form>
+  </div>
+</div>
+
+{% if entries is none %}
+  <div class="card card--error">
+    <p>לא ניתן לטעון את יומן התיעוד כרגע.</p>
+  </div>
+{% elif not entries %}
+  <div class="card">
+    <p class="text-empty">לא נמצאו רשומות המתאימות לסינון שנבחר.</p>
+  </div>
+{% else %}
+  <div class="card">
+    <h2>{{ entries | length }} רשומות</h2>
+    <div class="table-scroll">
+      <table class="table table--log table--audit">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>זמן מקומי</th>
+            <th>מבצע ועמדה</th>
+            <th>פעולה</th>
+            <th>תוצאה</th>
+            <th>רשומה</th>
+            <th>סוג שינוי</th>
+            <th>ערך קודם</th>
+            <th>ערך חדש</th>
+            <th>סיבה</th>
+            <th>פרטים</th>
+            <th>גיבוב</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in entries %}
+            <tr>
+              <td>{{ entry.log_id }}</td>
+              <td class="cell-nowrap">
+                {{ entry.created_at | datetime }}
+                {% if entry.utc_offset %}
+                  <small class="cell-sub">UTC{{ entry.utc_offset }}</small>
+                {% endif %}
+              </td>
+              <td>
+                {{ entry.actor }}
+                {% if entry.source_host %}
+                  <small class="cell-sub">{{ entry.source_host }}</small>
+                {% endif %}
+              </td>
+              <td class="cell-code">{{ entry.action | action_label }}</td>
+              <td>
+                <span class="tag tag--{{ entry.outcome.value | lower }}">
+                  {{ entry.outcome | outcome_label }}
+                </span>
+              </td>
+              <td class="cell-code">
+                {% if entry.entity_type %}
+                  {{ entry.entity_type | entity_label }}
+                  {% if entry.entity_id %}<span class="cell-sub">#{{ entry.entity_id }}</span>{% endif %}
+                {% else %}
+                  <span class="text-empty">—</span>
+                {% endif %}
+              </td>
+              <td class="cell-code">
+                {% if entry.operation %}
+                  {{ entry.operation | operation_label }}
+                {% else %}
+                  <span class="text-empty">—</span>
+                {% endif %}
+              </td>
+              <td class="cell-value">
+                {% if entry.old_value %}{{ entry.old_value }}{% else %}<span class="text-empty">—</span>{% endif %}
+              </td>
+              <td class="cell-value">
+                {% if entry.new_value %}{{ entry.new_value }}{% else %}<span class="text-empty">—</span>{% endif %}
+              </td>
+              <td class="cell-details">{{ entry.reason }}</td>
+              <td class="cell-details">{{ entry.details }}</td>
+              <td>{{ hash_cell(entry.record_hash) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if entries | length >= page_limit %}
+      <p class="card-note">
+        מוצגות {{ page_limit }} הרשומות האחרונות המתאימות לסינון. יש לצמצם את טווח
+        התאריכים כדי לראות רשומות מוקדמות יותר.
+      </p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,7 +1,10 @@
 """Creation of the database and its tables, executed once at startup.
 
 Every statement is written to be idempotent, so running the application again
-never destroys or duplicates existing data.
+never destroys or duplicates existing data. The audit trail columns are added by
+ALTER rather than being folded into CREATE TABLE, so that a database created by
+the earlier version of the system is upgraded in place instead of having to be
+rebuilt, and its existing log lines are preserved.
 """
 
 from __future__ import annotations
@@ -12,8 +15,17 @@ import re
 import pyodbc
 
 from config import get_config
+from core.audit_chain import (
+    AUDIT_ENTITY_ID_LENGTH,
+    AUDIT_HOST_LENGTH,
+    AUDIT_REASON_LENGTH,
+    AUDIT_VALUE_LENGTH,
+    GENESIS_HASH,
+    HASH_LENGTH,
+)
 from core.blood_types import BloodType
 from core.errors import DatabaseUnavailableError
+from core.models import AuditOperation
 
 from .connection import server_connection, transaction
 
@@ -24,6 +36,7 @@ logger = logging.getLogger(__name__)
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
 
 _BLOOD_TYPE_LIST = ", ".join(f"'{blood_type.value}'" for blood_type in BloodType)
+_OPERATION_LIST = ", ".join(f"'{operation.value}'" for operation in AuditOperation)
 
 _TABLE_STATEMENTS: tuple[str, ...] = (
     f"""
@@ -105,6 +118,97 @@ _TABLE_STATEMENTS: tuple[str, ...] = (
     CREATE INDEX IX_blood_units_stock_lookup
         ON dbo.blood_units (status, blood_type, donation_date);
     """,
+    f"""
+    IF OBJECT_ID('dbo.audit_chain_head', 'U') IS NULL
+    CREATE TABLE dbo.audit_chain_head (
+        -- One row, forever: the CHECK constraint makes a second chain head
+        -- impossible, so there can never be an argument about which one is real.
+        chain_id   TINYINT NOT NULL
+            CONSTRAINT PK_audit_chain_head PRIMARY KEY
+            CONSTRAINT CK_audit_chain_head_single CHECK (chain_id = 1),
+        head_hash  VARCHAR({HASH_LENGTH}) NOT NULL,
+        updated_at DATETIME2(0) NOT NULL
+            CONSTRAINT DF_audit_chain_head_updated_at DEFAULT SYSDATETIME()
+    );
+    """,
+    f"""
+    IF NOT EXISTS (SELECT 1 FROM dbo.audit_chain_head WHERE chain_id = 1)
+    INSERT INTO dbo.audit_chain_head (chain_id, head_hash) VALUES (1, '{GENESIS_HASH}');
+    """,
+)
+
+#: Columns added to the audit trail for 21 CFR Part 11. They are nullable
+#: because lines written before this upgrade cannot be given a value after the
+#: fact - inventing one would be exactly the kind of retroactive edit the audit
+#: trail exists to prevent.
+_AUDIT_TRAIL_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("entity_type", "VARCHAR(20) NULL"),
+    ("entity_id", f"VARCHAR({AUDIT_ENTITY_ID_LENGTH}) NULL"),
+    ("operation", "VARCHAR(10) NULL"),
+    ("old_value", f"NVARCHAR({AUDIT_VALUE_LENGTH}) NULL"),
+    ("new_value", f"NVARCHAR({AUDIT_VALUE_LENGTH}) NULL"),
+    ("reason", f"NVARCHAR({AUDIT_REASON_LENGTH}) NULL"),
+    ("created_at_utc", "DATETIME2(0) NULL"),
+    ("utc_offset", "VARCHAR(6) NULL"),
+    ("source_host", f"NVARCHAR({AUDIT_HOST_LENGTH}) NULL"),
+    ("previous_hash", f"VARCHAR({HASH_LENGTH}) NULL"),
+    ("record_hash", f"VARCHAR({HASH_LENGTH}) NULL"),
+)
+
+_AUDIT_TRAIL_STATEMENTS: tuple[str, ...] = tuple(
+    f"""
+    IF COL_LENGTH('dbo.activity_log', '{column}') IS NULL
+    ALTER TABLE dbo.activity_log ADD {column} {definition};
+    """
+    for column, definition in _AUDIT_TRAIL_COLUMNS
+) + (
+    f"""
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.check_constraints WHERE name = 'CK_activity_log_operation'
+    )
+    ALTER TABLE dbo.activity_log ADD CONSTRAINT CK_activity_log_operation
+        CHECK (operation IS NULL OR operation IN ({_OPERATION_LIST}));
+    """,
+    """
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.indexes
+        WHERE name = 'IX_activity_log_search'
+          AND object_id = OBJECT_ID('dbo.activity_log')
+    )
+    CREATE INDEX IX_activity_log_search
+        ON dbo.activity_log (created_at DESC, action, outcome);
+    """,
+    # An inspector filters the trail by who acted far more often than by
+    # anything else, and the operator name is not selective enough to be found
+    # through the timestamp index alone.
+    """
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.indexes
+        WHERE name = 'IX_activity_log_actor'
+          AND object_id = OBJECT_ID('dbo.activity_log')
+    )
+    CREATE INDEX IX_activity_log_actor ON dbo.activity_log (actor, created_at DESC);
+    """,
+    # The audit trail is append only. An INSTEAD OF trigger refuses the change
+    # rather than undoing it, so no partial edit is ever applied. It is written
+    # through EXEC because CREATE TRIGGER has to be the first statement of its
+    # batch and therefore cannot sit inside an IF.
+    #
+    # This stops an accidental or malicious UPDATE through any client, but a
+    # database administrator can disable the trigger; that is precisely why each
+    # line also carries a hash of the line before it.
+    """
+    IF OBJECT_ID('dbo.TR_activity_log_append_only', 'TR') IS NULL
+    EXEC('
+        CREATE TRIGGER dbo.TR_activity_log_append_only
+        ON dbo.activity_log
+        INSTEAD OF UPDATE, DELETE
+        AS
+        BEGIN
+            SET NOCOUNT ON;
+            THROW 50001, ''The audit trail is append only: its rows cannot be modified or deleted.'', 1;
+        END');
+    """,
 )
 
 
@@ -137,10 +241,15 @@ def ensure_database_exists() -> bool:
 
 
 def ensure_tables_exist() -> None:
-    """Create any missing table or index inside the application database."""
+    """Create any missing table, column, index or trigger.
+
+    The audit trail statements run after the table statements because they alter
+    a table the first group creates, and they run on every startup so that a
+    database left behind by an earlier version is upgraded in place.
+    """
     with transaction() as connection:
         cursor = connection.cursor()
-        for statement in _TABLE_STATEMENTS:
+        for statement in _TABLE_STATEMENTS + _AUDIT_TRAIL_STATEMENTS:
             cursor.execute(statement)
 
 

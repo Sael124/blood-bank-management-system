@@ -10,6 +10,14 @@
     מלאי ולוג פעולות
   </a>
 
+  <a href="{{ url_for('becs.audit_trail') }}" class="topbar-button">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 12l2 2 4-4" />
+      <path d="M12 3l7 3v6c0 4.4-2.9 7.9-7 9-4.1-1.1-7-4.6-7-9V6l7-3z" />
+    </svg>
+    יומן תיעוד
+  </a>
+
   {# The authentication feature has not been developed yet, so the control is
      visible but explicitly inert rather than silently missing. #}
   <button type="button" class="topbar-button topbar-button--disabled" disabled

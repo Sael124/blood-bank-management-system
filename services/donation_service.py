@@ -11,8 +11,8 @@ import pyodbc
 from app_logging.activity_log import ActivityAction, record, record_standalone
 from core import validation
 from core.blood_types import BloodType
-from core.errors import DataIntegrityError, ValidationError
-from core.models import ActivityOutcome, Donor
+from core.errors import BloodTypeConflictError, DataIntegrityError, ValidationError
+from core.models import ActivityOutcome, AuditEntity, AuditOperation, Donor
 from data import repositories
 from data.connection import transaction, wrap_driver_error
 
@@ -61,7 +61,10 @@ def register_donation(
         record_standalone(
             ActivityAction.DONATION_INTAKE,
             ActivityOutcome.REJECTED,
-            f"קליטת תרומה נדחתה. שדה: {error.field or 'לא ידוע'}. סיבה: {error}",
+            f"ניסיון קליטת תרומה נדחה בשלב אימות הקלט. שדה: {error.field or 'לא ידוע'}.",
+            entity=AuditEntity.BLOOD_UNIT,
+            operation=AuditOperation.NONE,
+            reason=str(error),
         )
         raise
 
@@ -69,11 +72,30 @@ def register_donation(
 
     try:
         return _store_donation(donor, donation_date)
+    except BloodTypeConflictError as error:
+        # The two blood types go into the value columns rather than only into the
+        # sentence, so the contradiction can be read straight off the trail.
+        record_standalone(
+            ActivityAction.DONATION_INTAKE,
+            ActivityOutcome.REJECTED,
+            f"ניסיון קליטת תרומה נדחה: סוג הדם שהוזן סותר את סוג הדם הרשום לתורם ת\"ז {donor_id}.",
+            entity=AuditEntity.DONOR,
+            operation=AuditOperation.NONE,
+            entity_id=donor_id,
+            old_value=error.recorded_blood_type,
+            new_value=error.submitted_blood_type,
+            reason=str(error),
+        )
+        raise
     except DataIntegrityError as error:
         record_standalone(
             ActivityAction.DONATION_INTAKE,
             ActivityOutcome.REJECTED,
-            f"קליטת תרומה נדחתה עבור ת\"ז {donor_id}: {error}",
+            f"ניסיון קליטת תרומה נדחה עבור ת\"ז {donor_id}.",
+            entity=AuditEntity.DONOR,
+            operation=AuditOperation.NONE,
+            entity_id=donor_id,
+            reason=str(error),
         )
         raise
     except pyodbc.Error as error:
@@ -81,18 +103,22 @@ def register_donation(
 
 
 def _store_donation(donor: Donor, donation_date: date) -> DonationReceipt:
-    """Persist the donor, the unit and the audit line in one transaction."""
+    """Persist the donor, the unit and their audit lines in one transaction.
+
+    Each stored record gets its own audit line - the donor, a change to the
+    donor, and the unit - because the trail has to be able to answer what
+    happened to one specific record, not only what the operator was doing.
+    """
     with transaction() as connection:
         cursor = connection.cursor()
         existing_donor = repositories.find_donor(cursor, donor.donor_id)
         is_returning_donor = existing_donor is not None
 
         if existing_donor is None:
-            repositories.insert_donor(cursor, donor)
+            _register_new_donor(cursor, donor)
         else:
             _reject_blood_type_conflict(existing_donor, donor.blood_type)
-            if existing_donor.full_name != donor.full_name:
-                repositories.update_donor_name(cursor, donor.donor_id, donor.full_name)
+            _apply_donor_name_change(cursor, existing_donor, donor.full_name)
 
         unit_id = repositories.insert_blood_unit(
             cursor, donor.donor_id, donor.blood_type, donation_date
@@ -107,6 +133,10 @@ def _store_donation(donor: Donor, donation_date: date) -> DonationReceipt:
                 f"מתורם ת\"ז {donor.donor_id} ({donor.full_name}), "
                 f"תאריך תרומה {donation_date.isoformat()}."
             ),
+            entity=AuditEntity.BLOOD_UNIT,
+            operation=AuditOperation.CREATE,
+            entity_id=unit_id,
+            new_value=f"{donor.blood_type} · תורם {donor.donor_id} · {donation_date.isoformat()}",
         )
 
     logger.info("Stored blood unit %s of type %s", unit_id, donor.blood_type)
@@ -115,6 +145,49 @@ def _store_donation(donor: Donor, donation_date: date) -> DonationReceipt:
         donor=donor,
         donation_date=donation_date,
         is_returning_donor=is_returning_donor,
+    )
+
+
+def _register_new_donor(cursor: pyodbc.Cursor, donor: Donor) -> None:
+    """Store a first time donor and record the creation of that record."""
+    repositories.insert_donor(cursor, donor)
+    record(
+        cursor,
+        ActivityAction.DONOR_REGISTERED,
+        ActivityOutcome.SUCCESS,
+        f"נרשם תורם חדש: ת\"ז {donor.donor_id}, {donor.full_name}, סוג דם {donor.blood_type}.",
+        entity=AuditEntity.DONOR,
+        operation=AuditOperation.CREATE,
+        entity_id=donor.donor_id,
+        new_value=f"{donor.full_name} · {donor.blood_type}",
+    )
+
+
+def _apply_donor_name_change(
+    cursor: pyodbc.Cursor, existing_donor: Donor, submitted_name: str
+) -> None:
+    """Refresh a returning donor's name, keeping the name it replaced.
+
+    People legally change names, so the update itself is legitimate. What is not
+    legitimate is losing the previous name: 21 CFR 11.10(e) requires that a
+    change must not obscure what was recorded before it, and a unit released
+    under the old name has to stay traceable to the person who gave it.
+    """
+    if existing_donor.full_name == submitted_name:
+        return
+
+    repositories.update_donor_name(cursor, existing_donor.donor_id, submitted_name)
+    record(
+        cursor,
+        ActivityAction.DONOR_NAME_UPDATED,
+        ActivityOutcome.SUCCESS,
+        f"עודכן שמו של התורם ת\"ז {existing_donor.donor_id}.",
+        entity=AuditEntity.DONOR,
+        operation=AuditOperation.UPDATE,
+        entity_id=existing_donor.donor_id,
+        old_value=existing_donor.full_name,
+        new_value=submitted_name,
+        reason="השם שהוזן בקליטת התרומה שונה מהשם הרשום במערכת עבור תעודת זהות זו.",
     )
 
 
@@ -128,8 +201,10 @@ def _reject_blood_type_conflict(existing_donor: Donor, submitted_type: BloodType
     """
     if existing_donor.blood_type is submitted_type:
         return
-    raise DataIntegrityError(
+    raise BloodTypeConflictError(
         f"התורם עם תעודת זהות זו רשום במערכת עם סוג דם {existing_donor.blood_type}, "
         f"אך הוזן סוג דם {submitted_type}. התרומה לא נקלטה. "
-        "יש לבדוק את מספר תעודת הזהות ואת סוג הדם לפני ניסיון נוסף."
+        "יש לבדוק את מספר תעודת הזהות ואת סוג הדם לפני ניסיון נוסף.",
+        recorded_blood_type=str(existing_donor.blood_type),
+        submitted_blood_type=str(submitted_type),
     )

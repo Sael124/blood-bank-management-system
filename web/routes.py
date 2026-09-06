@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from collections.abc import Mapping
+from datetime import date, datetime
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    Response,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
 from core.blood_types import DISPLAY_ORDER, UNIVERSAL_DONOR
 from core.errors import BloodBankError
 from core.validation import DEFAULT_DESTINATION, MAX_UNITS_PER_REQUEST
-from services import dispense_service, donation_service, inventory_service
+from services import audit_service, dispense_service, donation_service, inventory_service
+
+from .labels import CHAIN_FAILURE_LABELS, label
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +29,20 @@ blueprint = Blueprint("becs", __name__)
 
 _INTAKE_FIELDS = ("blood_type", "donation_date", "donor_id", "full_name")
 _DISPENSE_FIELDS = ("blood_type", "units", "destination")
+_AUDIT_FILTER_FIELDS = ("date_from", "date_to", "actor", "action", "outcome")
 
 
-def _submitted(fields: tuple[str, ...]) -> dict[str, str]:
-    """Collect the named form fields, trimmed, so they can be redisplayed."""
-    return {field: (request.form.get(field) or "").strip() for field in fields}
+def _submitted(
+    fields: tuple[str, ...], source: Mapping[str, str] | None = None
+) -> dict[str, str]:
+    """Collect the named fields, trimmed, so they can be redisplayed.
+
+    Reads the submitted form by default, and the query string when a screen
+    carries its state in the address instead - as the audit filter does, so that
+    a filtered view can be bookmarked and reopened.
+    """
+    values = request.form if source is None else source
+    return {field: (values.get(field) or "").strip() for field in fields}
 
 
 def _error_field(error: BloodBankError) -> str:
@@ -257,3 +277,108 @@ def inventory():
         activity_limit=inventory_service.ACTIVITY_LOG_LIMIT,
         records_limit=inventory_service.RECENT_RECORDS_LIMIT,
     )
+
+
+# --------------------------------------------------------------------------- #
+# Screen 5: the audit trail
+# --------------------------------------------------------------------------- #
+
+def _render_audit(
+    form: dict[str, str],
+    entries: list | None,
+    invalid_field: str = "",
+    status: int = 200,
+):
+    return (
+        render_template(
+            "audit.html",
+            form=form,
+            entries=entries,
+            invalid_field=invalid_field,
+            actions=audit_service.AUDIT_ACTIONS,
+            outcomes=audit_service.AUDIT_OUTCOMES,
+            page_limit=audit_service.AUDIT_PAGE_LIMIT,
+        ),
+        status,
+    )
+
+
+def _back_to_audit(form: dict[str, str]):
+    """Return to the trail with the filter the operator was working with.
+
+    Empty values are dropped so the address stays readable and a bookmark of it
+    keeps meaning the same thing.
+    """
+    active_filter = {field: value for field, value in form.items() if value}
+    return redirect(url_for("becs.audit_trail", **active_filter))
+
+
+@blueprint.get("/audit")
+def audit_trail():
+    """The full audit trail, filtered by whatever the address asks for."""
+    form = _submitted(_AUDIT_FILTER_FIELDS, request.args)
+    try:
+        query = audit_service.parse_query(form)
+        entries = audit_service.search(query)
+    except BloodBankError as error:
+        flash(str(error), "error")
+        return _render_audit(form, None, _error_field(error), status=400)
+
+    return _render_audit(form, entries)
+
+
+@blueprint.post("/audit/export")
+def audit_trail_export():
+    """Download the filtered trail as the electronic copy required by 11.10(b)."""
+    form = _submitted(_AUDIT_FILTER_FIELDS)
+    try:
+        query = audit_service.parse_query(form)
+        document, row_count = audit_service.export_csv(query)
+    except BloodBankError as error:
+        flash(str(error), "error")
+        return _back_to_audit(form)
+
+    logger.info("Exported %s audit records", row_count)
+    filename = f"becs-audit-trail-{datetime.now():%Y%m%d-%H%M%S}.csv"
+    return Response(
+        # Excel reads a CSV as the local ANSI code page unless it finds a byte
+        # order mark, which would turn every Hebrew detail into mojibake.
+        "\ufeff" + document,
+        mimetype="text/csv",
+        headers={
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@blueprint.post("/audit/verify")
+def audit_trail_verify():
+    """Recompute the hash chain and report whether the trail was tampered with."""
+    form = _submitted(_AUDIT_FILTER_FIELDS)
+    try:
+        report = audit_service.verify_integrity()
+    except BloodBankError as error:
+        flash(str(error), "error")
+        return _back_to_audit(form)
+
+    if report.is_intact:
+        flash(
+            f"בדיקת השלמות הסתיימה בהצלחה. {report.protected_records} רשומות "
+            f"מתוך {report.total_records} נבדקו ונמצאו ללא שינוי.",
+            "success",
+        )
+    else:
+        flash(
+            f"אזהרה: יומן התיעוד אינו שלם. {label(CHAIN_FAILURE_LABELS, report.failure)}. "
+            f"אי-ההתאמה זוהתה ברשומה מספר {report.broken_at_log_id}. "
+            "יש לדווח למנהל המערכת ולשמור גיבוי של בסיס הנתונים.",
+            "error",
+        )
+    if report.has_unprotected_records:
+        flash(
+            f"{report.unprotected_records} רשומות נכתבו לפני הפעלת מנגנון האימות "
+            "ולכן אינן מוגנות בשרשרת הגיבוב.",
+            "info",
+        )
+    return _back_to_audit(form)

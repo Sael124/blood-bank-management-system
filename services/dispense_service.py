@@ -24,7 +24,7 @@ from core import validation
 from core.allocation import DispensePlan, plan_emergency_dispense, plan_routine_dispense
 from core.blood_types import UNIVERSAL_DONOR, BloodType
 from core.errors import ConcurrentUpdateError, OutOfStockError, ValidationError
-from core.models import ActivityOutcome, DispenseMode
+from core.models import ActivityOutcome, AuditEntity, AuditOperation, DispenseMode
 from data import repositories
 from data.connection import read_only_connection, transaction, wrap_driver_error
 
@@ -92,7 +92,10 @@ def _validate_routine_request(
         record_standalone(
             ActivityAction.ROUTINE_DISPENSE,
             ActivityOutcome.REJECTED,
-            f"בקשת ניפוק בשגרה נדחתה. שדה: {error.field or 'לא ידוע'}. סיבה: {error}",
+            f"בקשת ניפוק בשגרה נדחתה בשלב אימות הקלט. שדה: {error.field or 'לא ידוע'}.",
+            entity=AuditEntity.DISPENSE,
+            operation=AuditOperation.NONE,
+            reason=str(error),
         )
         raise
 
@@ -125,7 +128,10 @@ def preview_routine_dispense(
         record_standalone(
             ActivityAction.ROUTINE_DISPENSE,
             ActivityOutcome.REJECTED,
-            f"בקשת ניפוק ל-{destination}: {units_requested} מנות מסוג {blood_type}. {message}",
+            f"בקשת ניפוק ל-{destination}: {units_requested} מנות מסוג {blood_type}.",
+            entity=AuditEntity.DISPENSE,
+            operation=AuditOperation.NONE,
+            reason=message,
         )
         raise OutOfStockError(message)
 
@@ -211,7 +217,10 @@ def _execute_dispense(
                 cursor,
                 _action_for(mode),
                 ActivityOutcome.REJECTED,
-                f"בקשת ניפוק ל-{destination} נדחתה: {shortage_message}",
+                f"בקשת ניפוק ל-{destination} נדחתה ולא נופקה אף מנה.",
+                entity=AuditEntity.DISPENSE,
+                operation=AuditOperation.NONE,
+                reason=shortage_message,
             )
         else:
             outcome = _commit_plan(cursor, mode, plan, destination)
@@ -263,7 +272,16 @@ def _commit_plan(
     outcome_status = (
         ActivityOutcome.SUCCESS if plan.is_fully_fulfilled else ActivityOutcome.PARTIAL
     )
-    record(cursor, _action_for(mode), outcome_status, _audit_details(mode, plan, destination, dispense_id))
+    record(
+        cursor,
+        _action_for(mode),
+        outcome_status,
+        _audit_details(mode, plan, destination, dispense_id),
+        entity=AuditEntity.DISPENSE,
+        operation=AuditOperation.CREATE,
+        entity_id=dispense_id,
+        new_value=f"{breakdown} → {destination}",
+    )
     return DispenseOutcome(
         dispense_id=dispense_id, mode=mode, plan=plan, destination=destination
     )

@@ -31,6 +31,26 @@ class DataIntegrityError(BloodBankError):
     """Raised when stored data contradicts new input in a life-threatening way."""
 
 
+class BloodTypeConflictError(DataIntegrityError):
+    """Raised when a returning donor's blood type contradicts the stored one.
+
+    The two conflicting values are carried on the exception so that the audit
+    trail can record what was on file and what was submitted as separate values,
+    rather than leaving the contradiction buried in a sentence.
+
+    Attributes:
+        recorded_blood_type: The type already stored for this donor.
+        submitted_blood_type: The type the operator entered.
+    """
+
+    def __init__(
+        self, message: str, recorded_blood_type: str, submitted_blood_type: str
+    ) -> None:
+        super().__init__(message)
+        self.recorded_blood_type = recorded_blood_type
+        self.submitted_blood_type = submitted_blood_type
+
+
 class DatabaseUnavailableError(BloodBankError):
     """Raised when SQL Server cannot be reached or the query failed."""
 

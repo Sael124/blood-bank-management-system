@@ -82,6 +82,11 @@
 
 <div class="card">
   <h2>לוג פעולות</h2>
+  <p class="card-note">
+    כאן מוצגות הפעולות האחרונות בקצרה.
+    <a href="{{ url_for('becs.audit_trail') }}">למסך יומן התיעוד המלא</a>,
+    הכולל סינון, ערכים לפני ואחרי שינוי, ייצוא עותק ובדיקת שלמות.
+  </p>
   {% if overview.activity %}
     <div class="table-collapsible is-collapsed" data-collapsible>
       <table class="table table--log">

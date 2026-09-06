@@ -14,6 +14,7 @@ from flask import Flask, flash, redirect, render_template, url_for
 from config import get_config
 from core.errors import BloodBankError
 
+from . import labels
 from .routes import blueprint
 from .security import register_csrf_protection
 
@@ -22,23 +23,15 @@ logger = logging.getLogger(__name__)
 #: Forms in this application are tiny; anything larger is not a real submission.
 _MAX_REQUEST_BYTES = 64 * 1024
 
-
-#: Hebrew labels for the values stored in English in the database. Keeping the
-#: translation in the web layer lets the stored data stay language neutral.
-_ACTION_LABELS = {
-    "DONATION_INTAKE": "קליטת תרומה",
-    "ROUTINE_DISPENSE": "ניפוק בשגרה",
-    "EMERGENCY_DISPENSE": "ניפוק אר״ן",
-    "DATABASE_INITIALISED": "אתחול בסיס נתונים",
+#: Every code column the templates display, and the table that translates it.
+_LABEL_FILTERS = {
+    "action_label": labels.ACTION_LABELS,
+    "outcome_label": labels.OUTCOME_LABELS,
+    "mode_label": labels.MODE_LABELS,
+    "status_label": labels.STATUS_LABELS,
+    "entity_label": labels.ENTITY_LABELS,
+    "operation_label": labels.OPERATION_LABELS,
 }
-_OUTCOME_LABELS = {
-    "SUCCESS": "הצלחה",
-    "PARTIAL": "סופק חלקית",
-    "REJECTED": "נדחה",
-    "FAILURE": "כשל",
-}
-_MODE_LABELS = {"ROUTINE": "שגרה", "EMERGENCY": "אר״ן"}
-_STATUS_LABELS = {"IN_STOCK": "במלאי", "DISPENSED": "נופק"}
 
 
 def _format_datetime(value: datetime | None) -> str:
@@ -47,12 +40,6 @@ def _format_datetime(value: datetime | None) -> str:
 
 def _format_date(value: date | None) -> str:
     return value.strftime("%d/%m/%Y") if value else ""
-
-
-def _label(labels: dict[str, str], value: object) -> str:
-    """Translate a stored code to Hebrew, falling back to the raw code."""
-    key = str(value)
-    return labels.get(key, key)
 
 
 def create_app() -> Flask:
@@ -76,10 +63,12 @@ def create_app() -> Flask:
 
     application.jinja_env.filters["datetime"] = _format_datetime
     application.jinja_env.filters["date"] = _format_date
-    application.jinja_env.filters["action_label"] = lambda value: _label(_ACTION_LABELS, value)
-    application.jinja_env.filters["outcome_label"] = lambda value: _label(_OUTCOME_LABELS, value)
-    application.jinja_env.filters["mode_label"] = lambda value: _label(_MODE_LABELS, value)
-    application.jinja_env.filters["status_label"] = lambda value: _label(_STATUS_LABELS, value)
+    for filter_name, label_table in _LABEL_FILTERS.items():
+        # The table is bound as a default argument: a closure over the loop
+        # variable would leave every filter pointing at the last table.
+        application.jinja_env.filters[filter_name] = (
+            lambda value, table=label_table: labels.label(table, value)
+        )
 
     register_csrf_protection(application)
     application.register_blueprint(blueprint)

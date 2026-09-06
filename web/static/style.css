@@ -170,6 +170,7 @@ svg.icon,
 .page-dispense { --accent: var(--color-dispense); }
 .page-emergency { --accent: var(--color-primary); }
 .page-logs { --accent: #33486a; }
+.page-audit { --accent: #33486a; }
 
 .page-head {
   margin-bottom: 24px;
@@ -627,3 +628,77 @@ svg.icon,
   border-color: rgba(255, 255, 255, 0.45);
 }
 .emergency-empty { margin: 12px 0 0; font-size: 14px; color: #ffd9de; }
+
+/* ------------------------------------------------------------ audit trail */
+
+.card--filter { background: #fbfcfe; }
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0 18px;
+}
+
+.audit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.audit-tools-text { flex: 1 1 380px; }
+.audit-tools-text h2 { margin-bottom: 8px; }
+.audit-tools-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* The trail has twelve columns, which is more than a laptop can show. Scrolling
+   the table alone keeps the page itself still, so the filter above it stays
+   where the operator left it. */
+.table-scroll { overflow-x: auto; }
+
+/* Left to itself the browser divides the width evenly, which squeezes a name or
+   a date into a column one word wide. The minimums below give each kind of
+   column the room its content actually needs, and the table is made wider than
+   the screen instead - scrolling a table sideways is a smaller cost than
+   reading a value one character per line. */
+.table--audit { min-width: 1500px; }
+.table--audit .cell-code { width: 108px; }
+.table--audit .cell-value { min-width: 168px; word-break: break-word; }
+.table--audit .cell-details { min-width: 230px; }
+
+.cell-sub {
+  display: block;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.hash {
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 12px;
+  color: var(--color-muted);
+  background: var(--color-page);
+  border-radius: 4px;
+  padding: 2px 5px;
+  cursor: help;
+  direction: ltr;
+  display: inline-block;
+}
+
+/* A printed trail is the human readable copy an inspection asks for, so the
+   chrome and the controls that cannot be printed are left out of it. */
+@media print {
+  .app-header,
+  .app-footer,
+  .card--filter,
+  .audit-tools,
+  .messages { display: none; }
+
+  .app-main { padding: 0; }
+  .card { box-shadow: none; border: none; padding: 0; }
+  .table-scroll { overflow: visible; }
+  .table--audit,
+  .table--audit .cell-value,
+  .table--audit .cell-details { min-width: 0; }
+  .table { font-size: 10px; }
+  .table th, .table td { padding: 3px 4px; }
+}

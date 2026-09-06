@@ -13,7 +13,7 @@ from app_logging.activity_log import ActivityAction, record_standalone
 from app_logging.app_logger import configure_logging
 from config import get_config
 from core.errors import BloodBankError
-from core.models import ActivityOutcome
+from core.models import ActivityOutcome, AuditEntity, AuditOperation
 from data.schema import initialise_database
 from web import create_app
 
@@ -29,6 +29,9 @@ def build_application():
             ActivityAction.DATABASE_INITIALISED,
             ActivityOutcome.SUCCESS,
             "בסיס הנתונים של בנק הדם נוצר ואותחל בהרצה הראשונה.",
+            entity=AuditEntity.DATABASE,
+            operation=AuditOperation.CREATE,
+            entity_id=get_config().database.database,
         )
     return create_app()
 

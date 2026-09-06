@@ -173,6 +173,75 @@ def validate_destination(raw_value: str | None) -> str:
     return destination
 
 
+#: An operator name used as a search term. Windows accounts arrive as
+#: "DOMAIN\\user", so the separator is allowed, while markup characters are not.
+_ACTOR_SEARCH_PATTERN = re.compile(r"^[A-Za-z0-9\u0590-\u05FF ._\-\\]+$")
+
+MAX_ACTOR_SEARCH_LENGTH = 60
+
+
+def validate_optional_date(raw_value: str | None, field: str) -> date | None:
+    """Parse a date that the operator is allowed to leave empty.
+
+    Used by the audit trail filter, where an empty bound means "no bound" rather
+    than a missing value that has to be refused.
+    """
+    if raw_value is None or not raw_value.strip():
+        return None
+
+    parsed = _parse_date(raw_value.strip())
+    if parsed is None:
+        raise ValidationError(
+            "התאריך אינו בפורמט תקין. הפורמט הנדרש הוא YYYY-MM-DD.", field=field
+        )
+    return parsed
+
+
+def validate_date_range(date_from: date | None, date_to: date | None) -> None:
+    """Refuse a range that ends before it starts.
+
+    Such a range silently matches nothing, which would let an operator conclude
+    that no action was ever recorded in a period that in fact holds records.
+    """
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise ValidationError(
+            "תאריך הסיום מוקדם מתאריך ההתחלה. יש לתקן את טווח התאריכים.",
+            field="date_to",
+        )
+
+
+def validate_actor_search(raw_value: str | None) -> str:
+    """Validate an operator name typed into the audit trail filter."""
+    if raw_value is None or not raw_value.strip():
+        return ""
+
+    actor = " ".join(raw_value.split())
+    if len(actor) > MAX_ACTOR_SEARCH_LENGTH:
+        raise ValidationError(
+            f"שם המבצע אינו יכול להיות ארוך מ-{MAX_ACTOR_SEARCH_LENGTH} תווים.",
+            field="actor",
+        )
+    if not _ACTOR_SEARCH_PATTERN.match(actor):
+        raise ValidationError("שם המבצע מכיל תווים שאינם מורשים.", field="actor")
+    return actor
+
+
+def validate_code(raw_value: str | None, allowed: frozenset[str], field: str) -> str:
+    """Accept a code only if it is one the system itself defines.
+
+    Filter values arrive from a dropdown, but a request can be sent without the
+    page, so the value is checked against the closed set rather than trusted and
+    passed to the database.
+    """
+    if raw_value is None or not raw_value.strip():
+        return ""
+
+    code = raw_value.strip().upper()
+    if code not in allowed:
+        raise ValidationError("נבחר ערך שאינו קיים במערכת.", field=field)
+    return code
+
+
 def validate_unit_count(raw_value: str | int | None) -> int:
     """Parse the number of requested units and keep it inside sane bounds."""
     if raw_value is None or (isinstance(raw_value, str) and not raw_value.strip()):
