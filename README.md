@@ -3,17 +3,18 @@
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)
 ![SQL Server](https://img.shields.io/badge/SQL%20Server-Express-CC2927?logo=microsoftsqlserver&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-87%20passing-0f7a4d)
+![Tests](https://img.shields.io/badge/tests-193%20passing-0f7a4d)
 
 A **Blood Establishment Computer Software (BECS)** for a national blood service. It tracks
 every donated unit from the donor to the operating room, decides which unit to release
 using ABO/Rh compatibility rules while protecting the O-negative emergency reserve, and
-records every action — including every rejected one — in an audit trail.
+records every action — including every rejected one — in an audit trail, and
+restricts protected health information to the roles that need it.
 
 Written as an academic assignment, but engineered like software that a hospital would
 depend on: a layered architecture where the clinical rules know nothing about the database,
-atomic transactions with row locking, defensive validation of every input, and 87 unit tests
-covering the decision logic.
+atomic transactions with row locking, defensive validation of every input, and 193 unit tests
+covering the decision logic, the audit trail and access control.
 
 > The operator interface is in Hebrew and laid out right to left, because that is the
 > language of the blood bank staff it was written for. The Hebrew documentation, including
@@ -66,9 +67,12 @@ the O-negative reserve highlighted, and a full log of every action.
   that a restock procedure must be started.
 - **Partial fulfilment** — when stock cannot cover the request, the system supplies what it can
   and says so explicitly instead of failing silently.
-- **Audit trail** — every action is recorded with its timestamp, operator, outcome and details.
-  Rejected inputs are recorded too, because an attempt to dispense blood is itself clinical
-  information.
+- **Audit trail (21 CFR Part 11)** — every action is recorded with who, when, which record,
+  and the value before and after a change. The log is append-only, hash-chained, filterable,
+  and exportable as CSV or as a complete XML copy of every stored record.
+- **Sign-in and roles (HIPAA)** — three accounts: an administrator who manages users and
+  metadata, a blood-bank operator who intakes and dispenses units, and a research student who
+  sees only de-identified inventory.
 - **Reporting** — stock per blood type, recent donations and dispenses, and the audit log, each
   previewed at ten rows and expandable on demand.
 
@@ -110,9 +114,9 @@ SQL Server or HTTP, which is why they can be tested exhaustively without a datab
 
 ```mermaid
 flowchart TD
-    WEB["web/<br/>Flask routes, Jinja templates, CSRF"]
-    SVC["services/<br/>use cases: intake, dispensing, reporting"]
-    CORE["core/<br/>pure clinical logic: compatibility, allocation, validation"]
+    WEB["web/<br/>Flask routes, sessions, Jinja templates, CSRF"]
+    SVC["services/<br/>use cases: intake, dispensing, reporting, auth"]
+    CORE["core/<br/>pure clinical logic: compatibility, allocation, validation, roles"]
     DATA["data/<br/>connections, schema, parameterised queries"]
     LOGS["app_logging/<br/>audit trail and technical log"]
     DB[("SQL Server")]
@@ -127,10 +131,10 @@ flowchart TD
 
 | Layer | Responsibility | Knows about |
 |---|---|---|
-| `core/` | blood types, compatibility, allocation, input validation | nothing but Python |
+| `core/` | blood types, compatibility, allocation, input validation, roles, PHI redaction | nothing but Python |
 | `data/` | connections, transactions, schema, every SQL query | the database only |
 | `services/` | orchestrates a use case from validation to audit entry | `core`, `data`, `app_logging` |
-| `web/` | HTTP endpoints, templates, CSRF protection | `services` |
+| `web/` | HTTP endpoints, sessions, templates, CSRF protection | `services` |
 | `app_logging/` | clinical audit trail in the database, technical log on disk | `data` |
 
 ---
@@ -151,6 +155,10 @@ flowchart TD
 - **Parameterised queries only.** No input is ever concatenated into SQL.
 - **CSRF tokens** on every state-changing form, so a dispense cannot be triggered from an
   external page.
+- **Signed-in sessions.** Every clinical screen requires a logged-in user. Passwords are stored
+  as salted PBKDF2 hashes, never in plain text.
+- **Minimum necessary access.** A research student never receives donor names or identity
+  numbers. Aggregated stock counts stay visible because they do not identify a person.
 - **No secrets in the code.** All configuration comes from environment variables, and the
   default connection uses Windows Authentication, so no password exists to leak.
 
@@ -164,6 +172,7 @@ flowchart TD
 | `blood_units` | every unit individually, linked to its donor and to its dispense |
 | `dispenses` | dispense events, routine or emergency |
 | `activity_log` | the audit trail |
+| `app_users` | signed-in accounts, roles and password hashes |
 
 **Why store each unit as a row instead of a counter per blood type?** A BECS is regulated
 software that must support traceability. If a problem is discovered in one unit, the system has
@@ -194,11 +203,19 @@ python main.py
 ```
 
 On the first run the application creates the `BloodBank` database and all of its tables by
-itself, then serves the interface at:
+itself, seeds three demo accounts, then serves the interface at:
 
 ```
 http://127.0.0.1:5000
 ```
+
+Sign-in is required. The demo accounts are also printed on the login screen:
+
+| Username | Password | Role |
+|---|---|---|
+| `admin` | `Admin123!` | administrator — users, metadata, every clinical action |
+| `operator` | `Operator123!` | blood-bank staff — intake and dispense |
+| `researcher` | `Research123!` | research student — de-identified inventory only |
 
 ### Configuration
 
@@ -236,6 +253,10 @@ core/                 pure clinical logic, no I/O
   compatibility.py    the transfusion compatibility table
   allocation.py       the allocation and dispensing algorithm
   validation.py       input validation, including the identity check digit
+  roles.py            the three HIPAA roles and what each may see
+  privacy.py          stripping of donor identifiers
+  audit_chain.py      tamper-evident hash chain for the audit trail
+  records_copy.py     portable XML copy of stored records
   models.py           domain entities
   errors.py           domain errors
 
@@ -248,6 +269,9 @@ services/             application layer
   donation_service.py donation intake
   dispense_service.py routine and emergency dispensing
   inventory_service.py inventory and log reporting
+  auth_service.py     sign-in, user administration, metadata
+  audit_service.py    filtered audit trail, CSV export, integrity check
+  records_export_service.py complete XML copy of stored records
 
 app_logging/          two log channels
   activity_log.py     clinical audit trail in the database
@@ -255,6 +279,7 @@ app_logging/          two log channels
 
 web/                  Flask interface
   routes.py           endpoints
+  auth.py             session login and role checks
   security.py         CSRF protection
   templates/          Hebrew RTL templates
   static/             stylesheet and the table expand script
@@ -268,8 +293,8 @@ docs/                 screenshots
 
 ## Testing
 
-87 unit tests cover the compatibility table, the allocation algorithm, input validation and the
-demo data generator.
+193 unit tests cover the compatibility table, the allocation algorithm, input validation,
+the Part 11 audit chain, record export, role permissions and PHI redaction.
 
 The most valuable one checks the compatibility table against an **independent rule** rather than
 against a copy of itself: a transfusion is safe exactly when the donor carries no antigen the
@@ -284,12 +309,7 @@ Set by the assignment: the very rare blood types are out of scope, only whole bl
 rather than separated components, and units do not expire because they are stored in liquid
 nitrogen.
 
-Deliberately not implemented: **authentication**. The login control is present in the interface
-but disabled, since roles and permissions were outside the scope of the assignment.
-
 ## What I would add next
 
-- Authentication with roles, so the audit trail records a real user instead of the workstation account.
 - Unit expiry and a shelf-life report, for a bank that does not use liquid nitrogen storage.
 - Integration tests against a disposable test database, alongside the current unit tests.
-- A CI workflow running the test suite on every push.

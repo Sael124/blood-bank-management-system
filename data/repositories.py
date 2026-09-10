@@ -23,9 +23,11 @@ from core.models import (
     DonationRecord,
     InventoryRow,
     UnitStatus,
+    UserAccount,
 )
 from core.blood_types import DISPLAY_ORDER, UNIVERSAL_DONOR
 from core.records_copy import BloodUnitCopy, DispenseCopy, DonorCopy
+from core.roles import Role
 
 
 # --------------------------------------------------------------------------- #
@@ -559,3 +561,115 @@ def all_activity_log_in_order(cursor: pyodbc.Cursor) -> list[ActivityLogEntry]:
         """
     )
     return [_to_activity_log_entry(row) for row in cursor.fetchall()]
+
+
+# --------------------------------------------------------------------------- #
+# Users
+# --------------------------------------------------------------------------- #
+
+def _to_user_account(row: pyodbc.Row) -> UserAccount:
+    return UserAccount(
+        username=row.username,
+        role=Role(row.role),
+        display_name=row.display_name,
+        is_active=bool(row.is_active),
+        created_at=row.created_at,
+        created_by=_text(row.created_by),
+    )
+
+
+def count_users(cursor: pyodbc.Cursor) -> int:
+    cursor.execute("SELECT COUNT(*) FROM dbo.app_users")
+    return int(cursor.fetchone()[0])
+
+
+def count_active_admins(cursor: pyodbc.Cursor) -> int:
+    cursor.execute(
+        "SELECT COUNT(*) FROM dbo.app_users WHERE role = ? AND is_active = 1",
+        Role.ADMIN.value,
+    )
+    return int(cursor.fetchone()[0])
+
+
+def find_user(cursor: pyodbc.Cursor, username: str) -> UserAccount | None:
+    cursor.execute(
+        """
+        SELECT username, role, display_name, is_active, created_at, created_by
+        FROM dbo.app_users
+        WHERE username = ?
+        """,
+        username,
+    )
+    row = cursor.fetchone()
+    return None if row is None else _to_user_account(row)
+
+
+def find_password_hash(cursor: pyodbc.Cursor, username: str) -> str | None:
+    cursor.execute(
+        "SELECT password_hash FROM dbo.app_users WHERE username = ?",
+        username,
+    )
+    row = cursor.fetchone()
+    return None if row is None else row.password_hash
+
+
+def list_users(cursor: pyodbc.Cursor) -> list[UserAccount]:
+    cursor.execute(
+        """
+        SELECT username, role, display_name, is_active, created_at, created_by
+        FROM dbo.app_users
+        ORDER BY role, username
+        """
+    )
+    return [_to_user_account(row) for row in cursor.fetchall()]
+
+
+def insert_user(
+    cursor: pyodbc.Cursor,
+    username: str,
+    password_hash: str,
+    role: Role,
+    display_name: str,
+    created_by: str,
+) -> None:
+    cursor.execute(
+        """
+        INSERT INTO dbo.app_users
+            (username, password_hash, role, display_name, created_by)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        username,
+        password_hash,
+        role.value,
+        display_name,
+        created_by,
+    )
+
+
+def set_user_active(cursor: pyodbc.Cursor, username: str, is_active: bool) -> int:
+    cursor.execute(
+        "UPDATE dbo.app_users SET is_active = ? WHERE username = ?",
+        int(is_active),
+        username,
+    )
+    return cursor.rowcount
+
+
+def count_donors(cursor: pyodbc.Cursor) -> int:
+    cursor.execute("SELECT COUNT(*) FROM dbo.donors")
+    return int(cursor.fetchone()[0])
+
+
+def count_blood_units(cursor: pyodbc.Cursor) -> int:
+    cursor.execute("SELECT COUNT(*) FROM dbo.blood_units")
+    return int(cursor.fetchone()[0])
+
+
+def count_dispenses(cursor: pyodbc.Cursor) -> int:
+    cursor.execute("SELECT COUNT(*) FROM dbo.dispenses")
+    return int(cursor.fetchone()[0])
+
+
+def count_activity_log(cursor: pyodbc.Cursor) -> int:
+    cursor.execute("SELECT COUNT(*) FROM dbo.activity_log")
+    return int(cursor.fetchone()[0])

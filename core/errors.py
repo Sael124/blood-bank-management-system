@@ -61,3 +61,11 @@ class ConcurrentUpdateError(BloodBankError):
     Nothing was dispensed: the transaction is rolled back and the operator is
     asked to repeat the request against the refreshed inventory.
     """
+
+
+class AccessDeniedError(BloodBankError):
+    """Raised when the signed-in role is not allowed to perform this action."""
+
+
+class AuthenticationError(BloodBankError):
+    """Raised when a login attempt is rejected."""

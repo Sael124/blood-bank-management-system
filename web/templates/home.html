@@ -10,24 +10,36 @@
     מלאי ולוג פעולות
   </a>
 
-  <a href="{{ url_for('becs.audit_trail') }}" class="topbar-button">
-    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M9 12l2 2 4-4" />
-      <path d="M12 3l7 3v6c0 4.4-2.9 7.9-7 9-4.1-1.1-7-4.6-7-9V6l7-3z" />
-    </svg>
-    יומן תיעוד
-  </a>
+  {% if can_view_audit() %}
+    <a href="{{ url_for('becs.audit_trail') }}" class="topbar-button">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 12l2 2 4-4" />
+        <path d="M12 3l7 3v6c0 4.4-2.9 7.9-7 9-4.1-1.1-7-4.6-7-9V6l7-3z" />
+      </svg>
+      יומן תיעוד
+    </a>
+  {% endif %}
 
-  {# The authentication feature has not been developed yet, so the control is
-     visible but explicitly inert rather than silently missing. #}
-  <button type="button" class="topbar-button topbar-button--disabled" disabled
-          title="הפיצ׳ר טרם פותח">
-    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" />
-    </svg>
-    התחברות למערכת
-    <span class="topbar-tag">בקרוב</span>
-  </button>
+  {% if can_manage_users() %}
+    <a href="{{ url_for('becs.users') }}" class="topbar-button">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3z" />
+        <path d="M8 13a3 3 0 1 0-3-3 3 3 0 0 0 3 3z" />
+        <path d="M3 20v-1a4 4 0 0 1 4-4h2" />
+        <path d="M12 20v-1a4 4 0 0 1 4-4h1" />
+      </svg>
+      ניהול משתמשים
+    </a>
+  {% endif %}
+
+  {% if can_view_metadata() %}
+    <a href="{{ url_for('becs.metadata') }}" class="topbar-button">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 6h16" /><path d="M4 12h10" /><path d="M4 18h7" />
+      </svg>
+      מטא-דאטה
+    </a>
+  {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -36,57 +48,121 @@
     <span class="home-eyebrow">בנק הדם הלאומי</span>
     <h1>איזו פעולה לבצע?</h1>
     <p class="home-subtitle">
-      בחר פעולה כדי להתחיל. לחזרה לתפריט זה יש להשתמש בכפתור החזרה שבראש המסך.
+      {% if can_handle_units() %}
+        בחר פעולה כדי להתחיל. לחזרה לתפריט זה יש להשתמש בכפתור החזרה שבראש המסך.
+      {% else %}
+        גישה לנתונים מזוהים של תורמים חסומה לתפקיד זה. ניתן לעיין במלאי מנוקה מפרטים אישיים.
+      {% endif %}
     </p>
   </div>
 
   <nav class="home-actions" aria-label="פעולות ראשיות">
-    <a href="{{ url_for('becs.donation_intake') }}" class="tile tile--intake">
+    {% if can_handle_units() %}
+      <a href="{{ url_for('becs.donation_intake') }}" class="tile tile--intake">
+        <span class="tile-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3s6 6.4 6 10.2A6 6 0 0 1 6 13.2C6 9.4 12 3 12 3z" />
+            <path d="M12 9v6" /><path d="M9 12h6" />
+          </svg>
+        </span>
+        <span class="tile-body">
+          <span class="tile-title">קליטת תרומה</span>
+          <span class="tile-meta">נדרש: סוג דם, ת״ז ושם</span>
+        </span>
+        <span class="tile-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+        </span>
+      </a>
+
+      <a href="{{ url_for('becs.routine_dispense_form') }}" class="tile tile--dispense">
+        <span class="tile-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3s6 6.4 6 10.2A6 6 0 0 1 6 13.2C6 9.4 12 3 12 3z" />
+            <path d="M9 13h6" />
+          </svg>
+        </span>
+        <span class="tile-body">
+          <span class="tile-title">ניפוק בשגרה</span>
+          <span class="tile-meta">נדרש: סוג דם ומנות</span>
+        </span>
+        <span class="tile-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+        </span>
+      </a>
+
+      <a href="{{ url_for('becs.emergency_dispense_form') }}" class="tile tile--emergency">
+        <span class="tile-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 4l9 16H3l9-16z" /><path d="M12 10v4" /><path d="M12 17h.01" />
+          </svg>
+        </span>
+        <span class="tile-body">
+          <span class="tile-title">אר״ן — אירוע רב נפגעים</span>
+          <span class="tile-meta">כל מלאי O- · ללא בדיקת התאמה</span>
+        </span>
+        <span class="tile-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+        </span>
+      </a>
+    {% endif %}
+
+    <a href="{{ url_for('becs.inventory') }}" class="tile tile--inventory">
       <span class="tile-icon">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 3s6 6.4 6 10.2A6 6 0 0 1 6 13.2C6 9.4 12 3 12 3z" />
-          <path d="M12 9v6" /><path d="M9 12h6" />
+          <path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" />
         </svg>
       </span>
       <span class="tile-body">
-        <span class="tile-title">קליטת תרומה</span>
-        <span class="tile-meta">נדרש: סוג דם, ת״ז ושם</span>
+        <span class="tile-title">מלאי ולוג פעולות</span>
+        <span class="tile-meta">
+          {% if can_view_phi() %}
+            מלאי לפי סוג דם ותיעוד הפעולות
+          {% else %}
+            נתונים מנוקים מפרטים מזהים של תורמים
+          {% endif %}
+        </span>
       </span>
       <span class="tile-arrow" aria-hidden="true">
         <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
       </span>
     </a>
 
-    <a href="{{ url_for('becs.routine_dispense_form') }}" class="tile tile--dispense">
-      <span class="tile-icon">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 3s6 6.4 6 10.2A6 6 0 0 1 6 13.2C6 9.4 12 3 12 3z" />
-          <path d="M9 13h6" />
-        </svg>
-      </span>
-      <span class="tile-body">
-        <span class="tile-title">ניפוק בשגרה</span>
-        <span class="tile-meta">נדרש: סוג דם ומנות</span>
-      </span>
-      <span class="tile-arrow" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
-      </span>
-    </a>
+    {% if can_manage_users() %}
+      <a href="{{ url_for('becs.users') }}" class="tile tile--admin">
+        <span class="tile-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3z" />
+            <path d="M8 13a3 3 0 1 0-3-3 3 3 0 0 0 3 3z" />
+            <path d="M3 20v-1a4 4 0 0 1 4-4h2" />
+            <path d="M12 20v-1a4 4 0 0 1 4-4h1" />
+          </svg>
+        </span>
+        <span class="tile-body">
+          <span class="tile-title">ניהול משתמשים</span>
+          <span class="tile-meta">יצירה, הפעלה וכיבוי של חשבונות</span>
+        </span>
+        <span class="tile-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+        </span>
+      </a>
+    {% endif %}
 
-    <a href="{{ url_for('becs.emergency_dispense_form') }}" class="tile tile--emergency">
-      <span class="tile-icon">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 4l9 16H3l9-16z" /><path d="M12 10v4" /><path d="M12 17h.01" />
-        </svg>
-      </span>
-      <span class="tile-body">
-        <span class="tile-title">אר״ן — אירוע רב נפגעים</span>
-        <span class="tile-meta">כל מלאי O- · ללא בדיקת התאמה</span>
-      </span>
-      <span class="tile-arrow" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
-      </span>
-    </a>
+    {% if can_view_metadata() %}
+      <a href="{{ url_for('becs.metadata') }}" class="tile tile--metadata">
+        <span class="tile-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16" /><path d="M4 12h10" /><path d="M4 18h7" />
+          </svg>
+        </span>
+        <span class="tile-body">
+          <span class="tile-title">מטא-דאטה</span>
+          <span class="tile-meta">כמויות רשומות בלי תוכן קליני מזהה</span>
+        </span>
+        <span class="tile-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+        </span>
+      </a>
+    {% endif %}
   </nav>
 </section>
 {% endblock %}

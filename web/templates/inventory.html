@@ -25,10 +25,21 @@
 <section class="page-head">
   <h1>מלאי בנק הדם ולוג הפעולות</h1>
   <p class="page-subtitle">
-    תמונת מצב של המלאי, לצד תיעוד מלא של כל פעולה שבוצעה במערכת.
+    {% if hide_phi %}
+      תמונת מצב של המלאי בנתונים מנוקים מפרטים מזהים של תורמים.
+    {% else %}
+      תמונת מצב של המלאי, לצד תיעוד מלא של כל פעולה שבוצעה במערכת.
+    {% endif %}
   </p>
 </section>
 
+{% if hide_phi %}
+  <div class="message message--info">
+    שמות תורמים ומספרי זהות הוסתרו. נתונים אלה אינם מועברים לתפקיד סטודנט מחקר.
+  </div>
+{% endif %}
+
+{% if can_export_records() %}
 <div class="card audit-tools">
   <div class="audit-tools-text">
     <h2>עותק אלקטרוני של כל הרשומות</h2>
@@ -44,6 +55,7 @@
     </form>
   </div>
 </div>
+{% endif %}
 
 {% if not overview %}
   <div class="card card--error">
@@ -100,8 +112,12 @@
   <h2>לוג פעולות</h2>
   <p class="card-note">
     כאן מוצגות הפעולות האחרונות בקצרה.
-    <a href="{{ url_for('becs.audit_trail') }}">למסך יומן התיעוד המלא</a>,
-    הכולל סינון, ערכים לפני ואחרי שינוי, ייצוא עותק ובדיקת שלמות.
+    {% if can_view_audit() %}
+      <a href="{{ url_for('becs.audit_trail') }}">למסך יומן התיעוד המלא</a>,
+      הכולל סינון, ערכים לפני ואחרי שינוי, ייצוא עותק ובדיקת שלמות.
+    {% elif hide_phi %}
+      פרטים מזהים של תורמים הוסרו מהשורות שלהלן.
+    {% endif %}
   </p>
   {% if overview.activity %}
     <div class="table-collapsible is-collapsed" data-collapsible>
@@ -151,7 +167,7 @@
             <tr>
               <th>מנה</th>
               <th>סוג דם</th>
-              <th>תורם</th>
+              <th>{% if hide_phi %}תורם (לא מזהה){% else %}תורם{% endif %}</th>
               <th>תאריך תרומה</th>
               <th>מצב</th>
             </tr>

@@ -22,6 +22,12 @@ ACTION_LABELS = {
     "AUDIT_TRAIL_EXPORTED": "ייצוא יומן תיעוד",
     "AUDIT_TRAIL_VERIFIED": "בדיקת שלמות היומן",
     "RECORDS_EXPORTED": "ייצוא כל הרשומות",
+    "LOGIN_SUCCESS": "התחברות",
+    "LOGIN_FAILURE": "התחברות נדחתה",
+    "LOGOUT": "התנתקות",
+    "USER_CREATED": "יצירת משתמש",
+    "USER_ACTIVATED": "הפעלת משתמש",
+    "USER_DEACTIVATED": "כיבוי משתמש",
 }
 
 OUTCOME_LABELS = {
@@ -42,6 +48,7 @@ ENTITY_LABELS = {
     "DATABASE": "בסיס נתונים",
     "AUDIT_TRAIL": "יומן תיעוד",
     "RECORDS": "עותק רשומות",
+    "USER": "משתמש",
 }
 
 OPERATION_LABELS = {
@@ -50,6 +57,12 @@ OPERATION_LABELS = {
     "DELETE": "מחיקת רשומה",
     "READ": "עיון ברשומות",
     "NONE": "לא בוצע שינוי",
+}
+
+ROLE_LABELS = {
+    "ADMIN": "מנהל מערכת",
+    "OPERATOR": "עובד בנק הדם",
+    "RESEARCHER": "סטודנט מחקר",
 }
 
 #: What each kind of broken hash chain means, in the terms an operator needs in

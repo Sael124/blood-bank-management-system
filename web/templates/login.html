@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}התחברות{% endblock %}
+{% block body_class %}page-login{% endblock %}
+
+{% block topbar %}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>התחברות למערכת</h1>
+  <p class="page-subtitle">
+    הגישה לרשומות קליניות מותרת למשתמש מחובר בלבד, בהתאם לדרישות HIPAA.
+  </p>
+</section>
+
+<div class="card card--form">
+  <form method="post" action="{{ url_for('becs.submit_login') }}" autocomplete="username" novalidate>
+    <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+
+    <div class="field {% if invalid_field == 'username' %}field--invalid{% endif %}">
+      <label for="username">שם משתמש</label>
+      <input type="text" id="username" name="username" value="{{ form.username }}"
+             maxlength="40" required autofocus>
+    </div>
+
+    <div class="field">
+      <label for="password">סיסמה</label>
+      <input type="password" id="password" name="password" required>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="button button--primary">כניסה</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>חשבונות הדגמה</h2>
+  <p class="card-note">
+    חשבונות אלה נוצרים בהרצה הראשונה כדי לאפשר בדיקה של שלושת התפקידים.
+  </p>
+  <table class="table table--compact">
+    <thead>
+      <tr>
+        <th>שם משתמש</th>
+        <th>סיסמה</th>
+        <th>תפקיד</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for username, password, role, display_name in demo_accounts %}
+        <tr>
+          <td class="cell-code">{{ username }}</td>
+          <td class="cell-code">{{ password }}</td>
+          <td>{{ role | role_label }} — {{ display_name }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -154,6 +154,33 @@ svg.icon,
   padding: 2px 8px;
 }
 
+.session-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  line-height: 1.25;
+}
+
+.session-chip-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.session-chip-role {
+  font-size: 11px;
+  color: #9db0c7;
+}
+
+.topbar-logout {
+  margin: 0;
+}
+
 /* ------------------------------------------------------------------ main */
 
 .app-main {
@@ -171,6 +198,8 @@ svg.icon,
 .page-emergency { --accent: var(--color-primary); }
 .page-logs { --accent: #33486a; }
 .page-audit { --accent: #33486a; }
+.page-users { --accent: #33486a; }
+.page-login { --accent: var(--color-primary); }
 
 .page-head {
   margin-bottom: 24px;
@@ -267,6 +296,9 @@ svg.icon,
 
 .tile--intake { background: var(--gradient-intake); }
 .tile--dispense { background: var(--gradient-dispense); }
+.tile--inventory { background: linear-gradient(135deg, #1b2f4d 0%, #33486a 100%); }
+.tile--admin { background: linear-gradient(135deg, #3b2a6e 0%, #5b4aa3 100%); }
+.tile--metadata { background: linear-gradient(135deg, #0f4c5c 0%, #147a8a 100%); }
 
 .tile--emergency {
   grid-column: 1 / -1;

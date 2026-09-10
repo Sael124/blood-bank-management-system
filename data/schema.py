@@ -26,6 +26,7 @@ from core.audit_chain import (
 from core.blood_types import BloodType
 from core.errors import DatabaseUnavailableError
 from core.models import AuditOperation
+from core.roles import Role
 
 from .connection import server_connection, transaction
 
@@ -37,6 +38,7 @@ _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
 
 _BLOOD_TYPE_LIST = ", ".join(f"'{blood_type.value}'" for blood_type in BloodType)
 _OPERATION_LIST = ", ".join(f"'{operation.value}'" for operation in AuditOperation)
+_ROLE_LIST = ", ".join(f"'{role.value}'" for role in Role)
 
 _TABLE_STATEMENTS: tuple[str, ...] = (
     f"""
@@ -117,6 +119,22 @@ _TABLE_STATEMENTS: tuple[str, ...] = (
     )
     CREATE INDEX IX_blood_units_stock_lookup
         ON dbo.blood_units (status, blood_type, donation_date);
+    """,
+    f"""
+    IF OBJECT_ID('dbo.app_users', 'U') IS NULL
+    CREATE TABLE dbo.app_users (
+        username      VARCHAR(40)    NOT NULL
+            CONSTRAINT PK_app_users PRIMARY KEY,
+        password_hash NVARCHAR(255)  NOT NULL,
+        role          VARCHAR(20)    NOT NULL
+            CONSTRAINT CK_app_users_role CHECK (role IN ({_ROLE_LIST})),
+        display_name  NVARCHAR(120)  NOT NULL,
+        is_active     BIT            NOT NULL
+            CONSTRAINT DF_app_users_is_active DEFAULT 1,
+        created_at    DATETIME2(0)   NOT NULL
+            CONSTRAINT DF_app_users_created_at DEFAULT SYSDATETIME(),
+        created_by    NVARCHAR(40)   NULL
+    );
     """,
     f"""
     IF OBJECT_ID('dbo.audit_chain_head', 'U') IS NULL

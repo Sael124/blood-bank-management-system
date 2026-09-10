@@ -15,6 +15,7 @@ from config import get_config
 from core.errors import BloodBankError
 from core.models import ActivityOutcome, AuditEntity, AuditOperation
 from data.schema import initialise_database
+from services import auth_service
 from web import create_app
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ def build_application():
     """Prepare logging and the database, then build the Flask application."""
     configure_logging()
     database_was_created = initialise_database()
+    auth_service.ensure_seed_users()
     if database_was_created:
         record_standalone(
             ActivityAction.DATABASE_INITIALISED,

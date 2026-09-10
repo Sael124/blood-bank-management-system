@@ -8,6 +8,7 @@ import pyodbc
 
 from core.blood_types import UNIVERSAL_DONOR
 from core.models import ActivityLogEntry, DispenseRecord, DonationRecord, InventoryRow
+from core.privacy import redact_activities, redact_donations
 from data import repositories
 from data.connection import read_only_connection, wrap_driver_error
 
@@ -53,12 +54,17 @@ def get_inventory_rows() -> list[InventoryRow]:
         raise wrap_driver_error(error) from error
 
 
-def get_overview() -> InventoryOverview:
-    """Collect the whole reporting screen using a single database connection."""
+def get_overview(*, hide_phi: bool = False) -> InventoryOverview:
+    """Collect the whole reporting screen using a single database connection.
+
+    Args:
+        hide_phi: When True, donor names and identity numbers are stripped so a
+            research student sees only de-identified aggregates.
+    """
     try:
         with read_only_connection() as connection:
             cursor = connection.cursor()
-            return InventoryOverview(
+            overview = InventoryOverview(
                 rows=repositories.inventory_report(cursor),
                 donations=repositories.recent_donations(cursor, RECENT_RECORDS_LIMIT),
                 dispenses=repositories.recent_dispenses(cursor, RECENT_RECORDS_LIMIT),
@@ -66,3 +72,12 @@ def get_overview() -> InventoryOverview:
             )
     except pyodbc.Error as error:
         raise wrap_driver_error(error) from error
+
+    if hide_phi:
+        return InventoryOverview(
+            rows=overview.rows,
+            donations=redact_donations(overview.donations),
+            dispenses=overview.dispenses,
+            activity=redact_activities(overview.activity),
+        )
+    return overview

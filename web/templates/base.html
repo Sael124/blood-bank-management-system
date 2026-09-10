@@ -32,6 +32,17 @@
           חזרה למסך הבית
         </a>
       {% endblock %}
+
+      {% if current_user() %}
+        <div class="session-chip" title="{{ current_user().username }}">
+          <span class="session-chip-name">{{ current_user().display_name }}</span>
+          <span class="session-chip-role">{{ current_user().role | role_label }}</span>
+        </div>
+        <form method="post" action="{{ url_for('becs.logout') }}" class="topbar-logout">
+          <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+          <button type="submit" class="topbar-button">יציאה</button>
+        </form>
+      {% endif %}
     </div>
   </header>
 

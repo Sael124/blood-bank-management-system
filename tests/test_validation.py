@@ -8,15 +8,20 @@ import pytest
 
 from core.blood_types import BloodType
 from core.errors import ValidationError
+from core.roles import Role
 from core.validation import (
     DEFAULT_DESTINATION,
     MAX_UNITS_PER_REQUEST,
     validate_blood_type,
     validate_destination,
+    validate_display_name,
     validate_donation_date,
     validate_donor_id,
     validate_full_name,
+    validate_password,
+    validate_role,
     validate_unit_count,
+    validate_username,
 )
 
 TODAY = date(2026, 8, 19)
@@ -137,3 +142,51 @@ def test_destination_allows_a_ward_name_with_digits():
 def test_destination_rejects_markup_characters():
     with pytest.raises(ValidationError):
         validate_destination("<b>trauma</b>")
+
+
+# ------------------------------------------------------------------- username
+
+def test_username_is_normalised_to_lowercase():
+    assert validate_username("Admin") == "admin"
+
+
+@pytest.mark.parametrize("raw", ["", None, "ab", "1admin", "ad min", "user-name"])
+def test_username_rejects_malformed_input(raw):
+    with pytest.raises(ValidationError):
+        validate_username(raw)
+
+
+# ------------------------------------------------------------------- password
+
+def test_password_accepts_a_mixed_letter_and_digit_secret():
+    assert validate_password("Admin123!") == "Admin123!"
+
+
+@pytest.mark.parametrize("raw", ["", None, "short1", "nodigitshere", "12345678"])
+def test_password_rejects_weak_secrets(raw):
+    with pytest.raises(ValidationError):
+        validate_password(raw)
+
+
+# -------------------------------------------------------------- display name
+
+def test_display_name_collapses_whitespace():
+    assert validate_display_name("  עובד   בנק  ") == "עובד בנק"
+
+
+def test_display_name_rejects_digits():
+    with pytest.raises(ValidationError):
+        validate_display_name("עובד 2")
+
+
+# ---------------------------------------------------------------------- role
+
+def test_role_accepts_the_three_defined_roles():
+    assert validate_role("researcher") is Role.RESEARCHER
+    assert validate_role("ADMIN") is Role.ADMIN
+
+
+def test_role_rejects_an_unknown_code():
+    with pytest.raises(ValidationError):
+        validate_role("GUEST")
+

@@ -179,6 +179,87 @@ _ACTOR_SEARCH_PATTERN = re.compile(r"^[A-Za-z0-9\u0590-\u05FF ._\-\\]+$")
 
 MAX_ACTOR_SEARCH_LENGTH = 60
 
+MIN_USERNAME_LENGTH = 3
+MAX_USERNAME_LENGTH = 40
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 72
+MAX_DISPLAY_NAME_LENGTH = 120
+
+_USERNAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]{2,39}$")
+_PASSWORD_HAS_LETTER = re.compile(r"[A-Za-z]")
+_PASSWORD_HAS_DIGIT = re.compile(r"\d")
+
+
+def validate_username(raw_value: str | None) -> str:
+    """Normalise and accept a login name."""
+    if raw_value is None or not raw_value.strip():
+        raise ValidationError("חובה להזין שם משתמש.", field="username")
+    username = raw_value.strip().lower()
+    if not (MIN_USERNAME_LENGTH <= len(username) <= MAX_USERNAME_LENGTH):
+        raise ValidationError(
+            f"שם המשתמש חייב להיות בין {MIN_USERNAME_LENGTH} ל-{MAX_USERNAME_LENGTH} תווים.",
+            field="username",
+        )
+    if not _USERNAME_PATTERN.match(username):
+        raise ValidationError(
+            "שם המשתמש חייב להתחיל באות באנגלית, ולהכיל רק אותיות, ספרות וקו תחתון.",
+            field="username",
+        )
+    return username
+
+
+def validate_password(raw_value: str | None) -> str:
+    """Accept a password that is long enough not to be guessed in one sitting."""
+    if raw_value is None or not raw_value:
+        raise ValidationError("חובה להזין סיסמה.", field="password")
+    if len(raw_value) < MIN_PASSWORD_LENGTH:
+        raise ValidationError(
+            f"הסיסמה חייבת להכיל לפחות {MIN_PASSWORD_LENGTH} תווים.",
+            field="password",
+        )
+    if len(raw_value) > MAX_PASSWORD_LENGTH:
+        raise ValidationError(
+            f"הסיסמה אינה יכולה להיות ארוכה מ-{MAX_PASSWORD_LENGTH} תווים.",
+            field="password",
+        )
+    if not _PASSWORD_HAS_LETTER.search(raw_value) or not _PASSWORD_HAS_DIGIT.search(raw_value):
+        raise ValidationError("הסיסמה חייבת להכיל גם אות וגם ספרה.", field="password")
+    return raw_value
+
+
+def validate_display_name(raw_value: str | None) -> str:
+    """Accept the operator's display name using the same alphabet as a person's name."""
+    if raw_value is None or not raw_value.strip():
+        raise ValidationError("חובה להזין שם תצוגה.", field="display_name")
+    name = " ".join(raw_value.split())
+    if len(name) < MIN_NAME_LENGTH:
+        raise ValidationError(
+            f"שם התצוגה חייב להכיל לפחות {MIN_NAME_LENGTH} תווים.", field="display_name"
+        )
+    if len(name) > MAX_DISPLAY_NAME_LENGTH:
+        raise ValidationError(
+            f"שם התצוגה אינו יכול להיות ארוך מ-{MAX_DISPLAY_NAME_LENGTH} תווים.",
+            field="display_name",
+        )
+    if not _NAME_PATTERN.match(name):
+        raise ValidationError(
+            "שם התצוגה יכול להכיל אותיות בעברית או באנגלית, רווחים ומקפים בלבד.",
+            field="display_name",
+        )
+    return name
+
+
+def validate_role(raw_value: str | None):
+    """Accept one of the three roles the system defines."""
+    from core.roles import Role
+
+    if raw_value is None or not raw_value.strip():
+        raise ValidationError("חובה לבחור תפקיד.", field="role")
+    try:
+        return Role(raw_value.strip().upper())
+    except ValueError:
+        raise ValidationError("התפקיד שנבחר אינו קיים במערכת.", field="role") from None
+
 
 def validate_optional_date(raw_value: str | None, field: str) -> date | None:
     """Parse a date that the operator is allowed to leave empty.

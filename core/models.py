@@ -7,6 +7,7 @@ from datetime import date, datetime
 from enum import Enum
 
 from .blood_types import BloodType
+from .roles import Role
 
 
 class UnitStatus(Enum):
@@ -56,6 +57,7 @@ class AuditEntity(Enum):
     DATABASE = "DATABASE"
     AUDIT_TRAIL = "AUDIT_TRAIL"
     RECORDS = "RECORDS"
+    USER = "USER"
 
     def __str__(self) -> str:
         return self.value
@@ -178,3 +180,15 @@ class ActivityLogEntry:
     def is_hash_protected(self) -> bool:
         """Whether this line takes part in the tamper evident hash chain."""
         return bool(self.record_hash)
+
+
+@dataclass(frozen=True)
+class UserAccount:
+    """A signed-in operator, stored without the password hash on this object."""
+
+    username: str
+    role: Role
+    display_name: str
+    is_active: bool
+    created_at: datetime | None = None
+    created_by: str = ""
