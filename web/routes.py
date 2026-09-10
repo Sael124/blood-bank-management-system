@@ -17,17 +17,20 @@ from flask import (
 )
 
 from core.blood_types import DISPLAY_ORDER, UNIVERSAL_DONOR
-from core.errors import BloodBankError
+from core.errors import AuthenticationError, BloodBankError
+from core.roles import Role, can_view_phi
 from core.validation import DEFAULT_DESTINATION, MAX_UNITS_PER_REQUEST
 from services import (
     audit_service,
+    auth_service,
     dispense_service,
     donation_service,
     inventory_service,
     records_export_service,
 )
 
-from .labels import CHAIN_FAILURE_LABELS, label
+from .auth import current_user, end_session, require_roles, start_session
+from .labels import CHAIN_FAILURE_LABELS, ROLE_LABELS, label
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,52 @@ def _submitted(
 def _error_field(error: BloodBankError) -> str:
     """Name of the input to highlight, when the error points at one."""
     return getattr(error, "field", "") or ""
+
+
+# --------------------------------------------------------------------------- #
+# Sign in
+# --------------------------------------------------------------------------- #
+
+@blueprint.get("/login")
+def login():
+    if current_user() is not None:
+        return redirect(url_for("becs.home"))
+    return render_template(
+        "login.html",
+        form={"username": ""},
+        invalid_field="",
+        demo_accounts=auth_service.DEMO_ACCOUNTS,
+    )
+
+
+@blueprint.post("/login")
+def submit_login():
+    form = _submitted(("username",))
+    try:
+        account = auth_service.authenticate(form["username"], request.form.get("password"))
+    except AuthenticationError as error:
+        flash(str(error), "error")
+        return render_template(
+            "login.html",
+            form=form,
+            invalid_field="username",
+            demo_accounts=auth_service.DEMO_ACCOUNTS,
+        ), 401
+    start_session(account)
+    flash(
+        f"שלום {account.display_name}. התחברת בתפקיד {label(ROLE_LABELS, account.role)}.",
+        "success",
+    )
+    return redirect(url_for("becs.home"))
+
+
+@blueprint.post("/logout")
+def logout():
+    username = end_session()
+    if username:
+        auth_service.record_logout(username)
+    flash("התנתקת מהמערכת.", "info")
+    return redirect(url_for("becs.login"))
 
 
 # --------------------------------------------------------------------------- #
@@ -85,6 +134,7 @@ def home():
 
 
 @blueprint.get("/donations")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def donation_intake():
     return _render_intake(
         {"blood_type": "", "donation_date": date.today().isoformat(), "donor_id": "", "full_name": ""}
@@ -92,6 +142,7 @@ def donation_intake():
 
 
 @blueprint.post("/donations")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def submit_donation():
     form = _submitted(_INTAKE_FIELDS)
     try:
@@ -141,11 +192,13 @@ def _render_routine(form: dict[str, str], invalid_field: str = "", status: int =
 
 
 @blueprint.get("/dispense/routine")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def routine_dispense_form():
     return _render_routine({"blood_type": "", "units": "1", "destination": DEFAULT_DESTINATION})
 
 
 @blueprint.post("/dispense/routine/preview")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def routine_dispense_preview():
     form = _submitted(_DISPENSE_FIELDS)
     try:
@@ -168,6 +221,7 @@ def routine_dispense_preview():
 
 
 @blueprint.post("/dispense/routine/confirm")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def routine_dispense_confirm():
     form = _submitted(_DISPENSE_FIELDS)
     try:
@@ -233,11 +287,13 @@ def _render_emergency(status: int = 200):
 
 
 @blueprint.get("/dispense/emergency")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def emergency_dispense_form():
     return _render_emergency()
 
 
 @blueprint.post("/dispense/emergency")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def emergency_dispense():
     try:
         outcome = dispense_service.dispense_emergency_supply(
@@ -270,8 +326,10 @@ TABLE_PREVIEW_ROWS = 10
 
 @blueprint.get("/inventory")
 def inventory():
+    account = current_user()
+    hide_phi = account is None or not can_view_phi(account.role)
     try:
-        overview = inventory_service.get_overview()
+        overview = inventory_service.get_overview(hide_phi=hide_phi)
     except BloodBankError as error:
         flash(str(error), "error")
         overview = None
@@ -282,10 +340,12 @@ def inventory():
         preview_rows=TABLE_PREVIEW_ROWS,
         activity_limit=inventory_service.ACTIVITY_LOG_LIMIT,
         records_limit=inventory_service.RECENT_RECORDS_LIMIT,
+        hide_phi=hide_phi,
     )
 
 
 @blueprint.post("/records/export")
+@require_roles(Role.ADMIN)
 def export_records():
     """Download every stored record as the electronic copy required by 11.10(b)."""
     try:
@@ -341,6 +401,7 @@ def _back_to_audit(form: dict[str, str]):
 
 
 @blueprint.get("/audit")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def audit_trail():
     """The full audit trail, filtered by whatever the address asks for."""
     form = _submitted(_AUDIT_FILTER_FIELDS, request.args)
@@ -355,6 +416,7 @@ def audit_trail():
 
 
 @blueprint.post("/audit/export")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def audit_trail_export():
     """Download the filtered trail as the electronic copy required by 11.10(b)."""
     form = _submitted(_AUDIT_FILTER_FIELDS)
@@ -380,6 +442,7 @@ def audit_trail_export():
 
 
 @blueprint.post("/audit/verify")
+@require_roles(Role.ADMIN, Role.OPERATOR)
 def audit_trail_verify():
     """Recompute the hash chain and report whether the trail was tampered with."""
     form = _submitted(_AUDIT_FILTER_FIELDS)
@@ -409,3 +472,78 @@ def audit_trail_verify():
             "info",
         )
     return _back_to_audit(form)
+
+
+# --------------------------------------------------------------------------- #
+# User administration and metadata (admin)
+# --------------------------------------------------------------------------- #
+
+_USER_FIELDS = ("username", "display_name", "role")
+
+
+@blueprint.get("/users")
+@require_roles(Role.ADMIN)
+def users():
+    accounts = auth_service.list_users()
+    return render_template(
+        "users.html",
+        users=accounts,
+        roles=(Role.ADMIN, Role.OPERATOR, Role.RESEARCHER),
+        form={"username": "", "display_name": "", "role": Role.OPERATOR.value},
+        invalid_field="",
+    )
+
+
+@blueprint.post("/users")
+@require_roles(Role.ADMIN)
+def create_user():
+    form = _submitted(_USER_FIELDS)
+    actor = current_user().username
+    try:
+        created = auth_service.create_user(
+            raw_username=form["username"],
+            raw_password=request.form.get("password"),
+            raw_display_name=form["display_name"],
+            raw_role=form["role"],
+            created_by=actor,
+        )
+    except BloodBankError as error:
+        flash(str(error), "error")
+        return (
+            render_template(
+                "users.html",
+                users=auth_service.list_users(),
+                roles=(Role.ADMIN, Role.OPERATOR, Role.RESEARCHER),
+                form=form,
+                invalid_field=_error_field(error),
+            ),
+            400,
+        )
+
+    flash(
+        f"נוצר המשתמש {created.username} בתפקיד {label(ROLE_LABELS, created.role)}.",
+        "success",
+    )
+    return redirect(url_for("becs.users"))
+
+
+@blueprint.post("/users/<username>/active")
+@require_roles(Role.ADMIN)
+def set_user_active(username: str):
+    wanted = (request.form.get("is_active") or "").strip() == "1"
+    try:
+        updated = auth_service.set_active(username, wanted, current_user().username)
+    except BloodBankError as error:
+        flash(str(error), "error")
+        return redirect(url_for("becs.users"))
+
+    state = "הופעל" if updated.is_active else "כובה"
+    flash(f"המשתמש {updated.username} {state}.", "success")
+    return redirect(url_for("becs.users"))
+
+
+@blueprint.get("/metadata")
+@require_roles(Role.ADMIN)
+def metadata():
+    snapshot = auth_service.get_metadata()
+    return render_template("metadata.html", metadata=snapshot)

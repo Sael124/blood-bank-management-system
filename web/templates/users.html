@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}ניהול משתמשים{% endblock %}
+{% block body_class %}page-users{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>ניהול משתמשי המערכת</h1>
+  <p class="page-subtitle">
+    מנהל המערכת מגדיר את החשבונות ואת התפקידים. הסיסמאות נשמרות כגיבוב בלבד.
+  </p>
+</section>
+
+<div class="card card--form">
+  <h2>משתמש חדש</h2>
+  <form method="post" action="{{ url_for('becs.create_user') }}" autocomplete="off" novalidate>
+    <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+    <div class="form-grid">
+      <div class="field {% if invalid_field == 'username' %}field--invalid{% endif %}">
+        <label for="username">שם משתמש</label>
+        <input type="text" id="username" name="username" value="{{ form.username }}"
+               maxlength="40" required>
+      </div>
+      <div class="field {% if invalid_field == 'display_name' %}field--invalid{% endif %}">
+        <label for="display_name">שם תצוגה</label>
+        <input type="text" id="display_name" name="display_name" value="{{ form.display_name }}"
+               maxlength="120" required>
+      </div>
+      <div class="field {% if invalid_field == 'password' %}field--invalid{% endif %}">
+        <label for="password">סיסמה</label>
+        <input type="password" id="password" name="password" required>
+        <small class="field-hint">לפחות 8 תווים, כולל אות וספרה.</small>
+      </div>
+      <div class="field {% if invalid_field == 'role' %}field--invalid{% endif %}">
+        <label for="role">תפקיד</label>
+        <select id="role" name="role" required>
+          {% for role in roles %}
+            <option value="{{ role.value }}" {% if form.role == role.value %}selected{% endif %}>
+              {{ role | role_label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="button button--primary">יצירת משתמש</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>משתמשים רשומים</h2>
+  <div class="table-scroll">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>שם משתמש</th>
+          <th>שם תצוגה</th>
+          <th>תפקיד</th>
+          <th>מצב</th>
+          <th>נוצר על ידי</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for account in users %}
+          <tr>
+            <td class="cell-code">{{ account.username }}</td>
+            <td>{{ account.display_name }}</td>
+            <td>{{ account.role | role_label }}</td>
+            <td>
+              {% if account.is_active %}
+                <span class="tag tag--success">פעיל</span>
+              {% else %}
+                <span class="tag tag--warning">כבוי</span>
+              {% endif %}
+            </td>
+            <td>{{ account.created_by or "—" }}</td>
+            <td>
+              <form method="post" action="{{ url_for('becs.set_user_active', username=account.username) }}">
+                <input type="hidden" name="{{ csrf_field_name }}" value="{{ csrf_token() }}">
+                {% if account.is_active %}
+                  <input type="hidden" name="is_active" value="0">
+                  <button type="submit" class="button button--ghost">כיבוי</button>
+                {% else %}
+                  <input type="hidden" name="is_active" value="1">
+                  <button type="submit" class="button button--primary">הפעלה</button>
+                {% endif %}
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

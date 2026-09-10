@@ -12,9 +12,10 @@ from datetime import date, datetime
 from flask import Flask, flash, redirect, render_template, url_for
 
 from config import get_config
-from core.errors import BloodBankError
+from core.errors import AccessDeniedError, BloodBankError
 
 from . import labels
+from .auth import register_authentication
 from .routes import blueprint
 from .security import register_csrf_protection
 
@@ -31,6 +32,7 @@ _LABEL_FILTERS = {
     "status_label": labels.STATUS_LABELS,
     "entity_label": labels.ENTITY_LABELS,
     "operation_label": labels.OPERATION_LABELS,
+    "role_label": labels.ROLE_LABELS,
 }
 
 
@@ -71,6 +73,7 @@ def create_app() -> Flask:
         )
 
     register_csrf_protection(application)
+    register_authentication(application)
     application.register_blueprint(blueprint)
     _register_error_handlers(application)
     return application
@@ -78,6 +81,10 @@ def create_app() -> Flask:
 
 def _register_error_handlers(application: Flask) -> None:
     """Turn failures into readable Hebrew screens instead of stack traces."""
+
+    @application.errorhandler(AccessDeniedError)
+    def _handle_access_denied(error: AccessDeniedError):
+        return render_template("error.html", status_code=403, message=str(error)), 403
 
     @application.errorhandler(BloodBankError)
     def _handle_domain_error(error: BloodBankError):
@@ -88,6 +95,11 @@ def _register_error_handlers(application: Flask) -> None:
     def _handle_bad_request(error):
         message = getattr(error, "description", "") or "הבקשה אינה תקינה."
         return render_template("error.html", status_code=400, message=message), 400
+
+    @application.errorhandler(403)
+    def _handle_forbidden(error):
+        message = getattr(error, "description", "") or "אין הרשאה לצפות בדף זה."
+        return render_template("error.html", status_code=403, message=message), 403
 
     @application.errorhandler(404)
     def _handle_not_found(error):

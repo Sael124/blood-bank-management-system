@@ -31,6 +31,7 @@ from __future__ import annotations
 import getpass
 import logging
 import socket
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -66,19 +67,38 @@ class ActivityAction(Enum):
     AUDIT_TRAIL_EXPORTED = "AUDIT_TRAIL_EXPORTED"
     AUDIT_TRAIL_VERIFIED = "AUDIT_TRAIL_VERIFIED"
     RECORDS_EXPORTED = "RECORDS_EXPORTED"
+    LOGIN_SUCCESS = "LOGIN_SUCCESS"
+    LOGIN_FAILURE = "LOGIN_FAILURE"
+    LOGOUT = "LOGOUT"
+    USER_CREATED = "USER_CREATED"
+    USER_ACTIVATED = "USER_ACTIVATED"
+    USER_DEACTIVATED = "USER_DEACTIVATED"
 
     def __str__(self) -> str:
         return self.value
 
 
-def current_operator() -> str:
-    """Identify the operator by the Windows account running the workstation.
+#: The signed-in username for this request. A context variable rather than a
+#: function argument, so every existing service call records the HIPAA user
+#: without each of them having to thread `actor` through by hand.
+_session_actor: ContextVar[str | None] = ContextVar("session_actor", default=None)
 
-    The system has no user accounts of its own, so the operating system user is
-    the honest answer to "who did this" without inventing a login screen. It is
-    recorded together with the workstation name, because an account name alone
-    does not say from where the action was taken.
+
+def bind_actor(username: str | None) -> None:
+    """Attach the signed-in username to subsequent audit lines on this request."""
+    _session_actor.set(username)
+
+
+def current_operator() -> str:
+    """Identify who performed the action.
+
+    The signed-in account is the honest Part 11 answer to "who did this". When
+    nothing is signed in - startup, a rejected login - the workstation account
+    is used instead of inventing a name.
     """
+    bound = _session_actor.get()
+    if bound:
+        return bound[:AUDIT_ACTOR_LENGTH]
     try:
         return getpass.getuser()[:AUDIT_ACTOR_LENGTH]
     except OSError:

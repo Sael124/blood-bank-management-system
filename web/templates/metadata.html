@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}מטא-דאטה{% endblock %}
+{% block body_class %}page-users{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>מטא-דאטה של המערכת</h1>
+  <p class="page-subtitle">
+    נתונים על הרשומות ולא את תוכן הרשומות עצמן: כמה תורמים, מנות, ניפוקים
+    ומשתמשים קיימים, בלי שמות תורמים או מספרי זהות.
+  </p>
+</section>
+
+<div class="stat-row">
+  <div class="stat-card">
+    <span class="stat-label">תורמים</span>
+    <span class="stat-value">{{ metadata.donor_count }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">מנות דם</span>
+    <span class="stat-value">{{ metadata.unit_count }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">ניפוקים</span>
+    <span class="stat-value">{{ metadata.dispense_count }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">רשומות תיעוד</span>
+    <span class="stat-value">{{ metadata.activity_count }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">משתמשי מערכת</span>
+    <span class="stat-value">{{ metadata.user_count }}</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>חשבונות במערכת</h2>
+  <p class="card-note">אלה משתמשי התוכנה, לא תורמי הדם.</p>
+  <table class="table table--compact">
+    <thead>
+      <tr>
+        <th>שם משתמש</th>
+        <th>תפקיד</th>
+        <th>מצב</th>
+        <th>נוצר</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for account in metadata.users %}
+        <tr>
+          <td class="cell-code">{{ account.username }}</td>
+          <td>{{ account.role | role_label }}</td>
+          <td>{{ "פעיל" if account.is_active else "כבוי" }}</td>
+          <td class="cell-nowrap">{{ account.created_at | datetime }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
